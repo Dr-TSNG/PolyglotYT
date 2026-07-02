@@ -1,11 +1,9 @@
 package icu.nullptr.polyglot.youtube
 
-import org.luckypray.dexkit.DexKitCacheBridge
-import org.luckypray.dexkit.annotations.DexKitExperimentalApi
+import org.luckypray.dexkit.DexKitBridge
 
 interface BaseHook {
     val name: String
 
-    @OptIn(DexKitExperimentalApi::class)
-    fun install(dexkit: DexKitCacheBridge.RecyclableBridge): Boolean
+    fun install(dexkit: DexKitBridge): Boolean
 }

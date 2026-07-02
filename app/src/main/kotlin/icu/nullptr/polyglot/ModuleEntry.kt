@@ -5,13 +5,11 @@ import android.content.Context
 import android.util.Log
 import icu.nullptr.polyglot.core.ConfigManager
 import icu.nullptr.polyglot.core.FileManager
-import icu.nullptr.polyglot.dex.DexKitFileCache
+import icu.nullptr.polyglot.util.DexKitRuntime
 import icu.nullptr.polyglot.util.findAndHookAfter
 import icu.nullptr.polyglot.youtube.CaptionHook
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
-import org.luckypray.dexkit.DexKitCacheBridge
-import org.luckypray.dexkit.annotations.DexKitExperimentalApi
 import java.util.concurrent.atomic.AtomicBoolean
 
 lateinit var module: ModuleEntry
@@ -37,7 +35,6 @@ class ModuleEntry : XposedModule() {
         module.log(Log.INFO, TAG, "Loaded in framework $frameworkName API $apiVersion")
     }
 
-    @OptIn(DexKitExperimentalApi::class)
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
         if (param.packageName != TARGET_PACKAGE || !param.isFirstPackage) {
             if (apiVersion >= API_102) detach()
@@ -59,12 +56,9 @@ class ModuleEntry : XposedModule() {
             fileManager = FileManager(context)
             config = ConfigManager(context, fileManager.configDir)
 
-            System.loadLibrary("dexkit")
-            DexKitCacheBridge.init(DexKitFileCache(fileManager.dexKitDir))
-
             val packageInfo = application.packageManager.getPackageInfo(param.packageName, 0)
             val tag = "${param.packageName}:${packageInfo.longVersionCode}"
-            DexKitCacheBridge.create(tag, application.packageCodePath).use {
+            DexKitRuntime.use(application.packageCodePath) {
                 module.log(Log.INFO, TAG, "DexKit bridge ready for $tag")
 
                 val hooks = listOf(
