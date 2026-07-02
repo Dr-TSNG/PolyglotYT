@@ -1,0 +1,12 @@
+[versions]
+agp = "9.2.1"
+libxposed = "102.0.0"
+
+[libraries]
+dexkit = { module = "org.luckypray:dexkit", version = "2.2.0" }
+gson = { module = "com.google.code.gson:gson", version = "2.14.0" }
+mmkv = { module = "com.tencent:mmkv", version = "2.4.0" }
+libxposed-api = { module = "io.github.libxposed:api", version.ref = "libxposed" }
+
+[plugins]
+agp-app = { id = "com.android.application", version.ref = "agp" }
