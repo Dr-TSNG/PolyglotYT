@@ -1,5 +1,7 @@
 package icu.nullptr.polyglot.youtube
 
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.util.Log
 import android.util.SparseArray
@@ -8,6 +10,7 @@ import icu.nullptr.polyglot.captions.BilingualFormatter
 import icu.nullptr.polyglot.captions.CaptionCue
 import icu.nullptr.polyglot.captions.CaptionSession
 import icu.nullptr.polyglot.module
+import icu.nullptr.polyglot.translate.TranslationManager
 import icu.nullptr.polyglot.util.hook
 import icu.nullptr.polyglot.util.toMethod
 import org.luckypray.dexkit.DexKitBridge
@@ -16,13 +19,22 @@ import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
+import java.util.WeakHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 object CaptionHook : BaseHook {
     override val name = "CaptionHook"
 
     private val session = CaptionSession()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val rendererStates = WeakHashMap<Any, RendererState>()
+    private val rendererSequence = AtomicLong(0L)
+    private val applyingTranslatedText = ThreadLocal.withInitial { false }
+    private lateinit var translationManager: TranslationManager
 
     override fun install(dexkit: DexKitBridge): Boolean {
+        translationManager = TranslationManager(module.config)
+
         var installed = 0
 
         if (installTimelineBuildHook(dexkit)) {
@@ -52,8 +64,9 @@ object CaptionHook : BaseHook {
         hook(method) { chain ->
             val result = chain.proceed()
             if (module.config.enabled) {
-                val newCueCount = observeTimeline(result)
-                logObservedCueCount(newCueCount, source = "timeline")
+                val newCues = observeTimeline(result)
+                requestTranslations(newCues, source = "timeline")
+                logObservedCueCount(newCues.size, source = "timeline")
             }
             result
         }
@@ -74,6 +87,10 @@ object CaptionHook : BaseHook {
         var installed = 0
         for (method in methods) {
             hook(method) { chain ->
+                if (applyingTranslatedText.get() == true) {
+                    return@hook chain.proceed()
+                }
+
                 if (!module.config.enabled) {
                     return@hook chain.proceed()
                 }
@@ -85,10 +102,21 @@ object CaptionHook : BaseHook {
 
                 val original = chain.getArg(0) as? CharSequence
                     ?: return@hook chain.proceed()
+                val normalizedOriginal = CaptionCue.normalize(original.toString())
+                rememberRendererState(thisObject, method, normalizedOriginal)
 
                 if (session.observeRenderedText(original)) {
-                    val length = CaptionCue.normalize(original.toString()).length
+                    val length = normalizedOriginal.length
                     module.log(Log.DEBUG, name, "Observed rendered caption text, length=$length")
+                }
+
+                session.translatedCueContaining(normalizedOriginal)?.let { translation ->
+                    val replacement = replacementForTranslatedCue(
+                        cueText = translation.original,
+                        renderedFragment = normalizedOriginal,
+                        translated = translation.translated,
+                    )
+                    return@hook chain.proceed(arrayOf(replacement))
                 }
 
                 val formatted = formatCaption(original)
@@ -122,8 +150,9 @@ object CaptionHook : BaseHook {
         for (method in methods) {
             hook(method) { chain ->
                 if (module.config.enabled) {
-                    val newCueCount = observeCueList(chain.getArg(0))
-                    logObservedCueCount(newCueCount, source = "overlay")
+                    val newCues = observeCueList(chain.getArg(0))
+                    requestTranslations(newCues, source = "overlay")
+                    logObservedCueCount(newCues.size, source = "overlay")
                 }
                 chain.proceed()
             }
@@ -145,20 +174,20 @@ object CaptionHook : BaseHook {
             module.log(Log.WARN, name, "Unable to load $label method $this", e)
         }.getOrNull()
 
-    private fun observeTimeline(result: Any?): Int {
-        if (result == null) return 0
+    private fun observeTimeline(result: Any?): List<CaptionCue> {
+        if (result == null) return emptyList()
 
         val lists = result.instanceFieldValues()
             .filterIsInstance<List<*>>()
             .filter { it.isNotEmpty() }
-        val texts = lists.firstOrNull { list -> list.any { it is CharSequence } } ?: return 0
+        val texts = lists.firstOrNull { list -> list.any { it is CharSequence } } ?: return emptyList()
         val timeLists = lists.filter { list -> list.all { it is Number } }
-        if (timeLists.size < 2) return 0
+        if (timeLists.size < 2) return emptyList()
 
         val (starts, ends) = orderedTimelineTimeLists(timeLists[0], timeLists[1])
 
         val size = minOf(starts.size, ends.size, texts.size)
-        if (size == 0) return 0
+        if (size == 0) return emptyList()
 
         val cues = ArrayList<CaptionCue>(size)
         for (index in 0 until size) {
@@ -175,15 +204,15 @@ object CaptionHook : BaseHook {
                 ),
             )
         }
-        return session.observeCues(cues)
+        return session.observeNewCues(cues)
     }
 
-    private fun observeCueList(arg: Any?): Int {
-        val list = arg as? List<*> ?: return 0
+    private fun observeCueList(arg: Any?): List<CaptionCue> {
+        val list = arg as? List<*> ?: return emptyList()
         val cues = list.mapNotNull { item ->
             if (item == null) null else item.toCaptionCue()
         }
-        return session.observeCues(cues)
+        return session.observeNewCues(cues)
     }
 
     private fun Any.toCaptionCue(): CaptionCue? {
@@ -263,6 +292,114 @@ object CaptionHook : BaseHook {
         }
     }
 
+    private fun requestTranslations(cues: List<CaptionCue>, source: String) {
+        for (cue in cues) {
+            requestTranslation(cue.text, source)
+        }
+    }
+
+    private fun requestTranslation(text: String, source: String) {
+        if (session.translationFor(text) != null) return
+
+        translationManager.translateAsync(
+            text = text,
+            context = "YouTube subtitle $source",
+        ) { original, translated ->
+            session.putTranslation(original, translated)
+            module.log(Log.DEBUG, name, "Translated caption from $source, length=${original.length}")
+            refreshVisibleRenderers(original, source)
+        }
+    }
+
+    private fun rememberRendererState(renderer: Any, method: Method, normalizedText: String) {
+        if (normalizedText.isEmpty()) return
+
+        synchronized(rendererStates) {
+            rendererStates[renderer] = RendererState(
+                method = method,
+                normalizedText = normalizedText,
+                sequence = rendererSequence.incrementAndGet(),
+                updatedAtMs = System.currentTimeMillis(),
+            )
+        }
+    }
+
+    private fun replacementForTranslatedCue(
+        cueText: String,
+        renderedFragment: String,
+        translated: String,
+    ): CharSequence {
+        val normalizedCue = CaptionCue.normalize(cueText)
+        val normalizedFragment = CaptionCue.normalize(renderedFragment)
+        if (normalizedCue.isEmpty() || normalizedFragment.isEmpty()) return renderedFragment
+
+        val shouldDisplayBlock = normalizedCue == normalizedFragment ||
+            normalizedCue.endsWith(normalizedFragment)
+        return if (shouldDisplayBlock) {
+            BilingualFormatter.format(normalizedCue, translated)
+        } else {
+            ""
+        }
+    }
+
+    private fun refreshVisibleRenderers(original: String, source: String) {
+        val normalized = CaptionCue.normalize(original)
+        if (normalized.isEmpty()) return
+
+        mainHandler.post {
+            val now = System.currentTimeMillis()
+            val snapshot = synchronized(rendererStates) {
+                rendererStates.entries
+                    .filter { (_, state) -> now - state.updatedAtMs <= RENDERER_STATE_TTL_MS }
+                    .map { (renderer, state) -> renderer to state }
+            }
+
+            val formatted = formatCaption(normalized)
+            if (formatted.toString() == normalized) return@post
+
+            val exactTargets = snapshot.filter { (_, state) -> state.normalizedText == normalized }
+            if (exactTargets.isNotEmpty()) {
+                for ((renderer, state) in exactTargets) {
+                    invokeRenderer(renderer, state.method, formatted, source, normalized.length)
+                }
+                return@post
+            }
+
+            val coveredTargets = snapshot
+                .filter { (_, state) -> state.normalizedText.isNotEmpty() && normalized.contains(state.normalizedText) }
+                .sortedBy { (_, state) -> state.sequence }
+            if (coveredTargets.isEmpty()) return@post
+
+            for ((renderer, state) in coveredTargets.dropLast(1)) {
+                invokeRenderer(renderer, state.method, "", source, normalized.length)
+            }
+
+            val anchor = coveredTargets.last()
+            invokeRenderer(anchor.first, anchor.second.method, formatted, source, normalized.length)
+        }
+    }
+
+    private fun invokeRenderer(
+        renderer: Any,
+        method: Method,
+        text: CharSequence,
+        source: String,
+        originalLength: Int,
+    ) {
+        runCatching {
+            applyingTranslatedText.set(true)
+            method.invoke(renderer, text)
+        }.onSuccess {
+            if (text.isNotEmpty()) {
+                module.log(Log.DEBUG, name, "Refreshed visible caption from $source, length=$originalLength")
+            }
+        }.onFailure { e ->
+            module.log(Log.WARN, name, "Unable to refresh visible caption", e)
+        }.also {
+            applyingTranslatedText.set(false)
+        }
+    }
+
     private fun Method.shortName(): String =
         "${declaringClass.name}#$name(${parameterTypes.joinToString { it.simpleName }})"
 
@@ -327,4 +464,12 @@ object CaptionHook : BaseHook {
         "subtitles are not given in non-decreasing start time order"
     private const val EDITABLE_TYPE = "android.text.Editable"
     private const val SPARSE_ARRAY_TYPE = "android.util.SparseArray"
+    private const val RENDERER_STATE_TTL_MS = 2_000L
+
+    private data class RendererState(
+        val method: Method,
+        val normalizedText: String,
+        val sequence: Long,
+        val updatedAtMs: Long,
+    )
 }

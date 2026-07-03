@@ -14,13 +14,36 @@ class ConfigManager(context: Context, directory: File) {
 
     var targetLanguage: String by Pref("target_language", "zh-Hans")
 
-    var provider: String by Pref("translator_provider", "google")
+    var provider: String by Pref("translator_provider", "microsoft")
 
     var bilingualOrder: String by Pref("bilingual_order", "original_first")
 
     var maxConcurrency: Int by Pref("max_concurrency", 4)
 
     var requestTimeoutMs: Int by Pref("request_timeout_ms", 45000)
+
+    var maxRetries: Int by Pref("max_retries", 2)
+
+    var openAiEndpoint: String by Pref(
+        "openai_endpoint",
+        "https://api.openai.com/v1/chat/completions",
+    )
+
+    var openAiApiKey: String by Pref("openai_api_key", "")
+
+    var openAiModel: String by Pref("openai_model", "gpt-4o-mini")
+
+    var openAiSystemPrompt: String by Pref(
+        "openai_system_prompt",
+        "You are a professional, authentic machine translation engine.",
+    )
+
+    var openAiUserPrompt: String by Pref(
+        "openai_user_prompt",
+        "Translate the following subtitle text into {{to}}. " +
+            "If translation is unnecessary, return the original text. " +
+            "NO explanations. NO notes:\n\n{{origin}}",
+    )
 
     private inner class Pref<T>(
         private val key: String,

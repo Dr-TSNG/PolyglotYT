@@ -5,4 +5,5 @@ data class TranslationRequest(
     val sourceLanguage: String,
     val targetLanguage: String,
     val context: String,
+    val timeoutMs: Int,
 )

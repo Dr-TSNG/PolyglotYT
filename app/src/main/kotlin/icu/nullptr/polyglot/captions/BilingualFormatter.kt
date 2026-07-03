@@ -4,14 +4,15 @@ import icu.nullptr.polyglot.module
 
 object BilingualFormatter {
     fun format(original: CharSequence?, translated: String?): CharSequence {
-        val originalText = original?.toString().orEmpty()
-        if (translated.isNullOrBlank() || CaptionCue.normalize(translated) == CaptionCue.normalize(originalText)) {
+        val originalText = CaptionCue.normalize(original?.toString().orEmpty())
+        val translatedText = CaptionCue.normalize(translated.orEmpty())
+        if (translatedText.isBlank() || translatedText == originalText) {
             return original ?: ""
         }
         return if (module.config.bilingualOrder == "translation_first") {
-            "$translated\n$originalText"
+            "$translatedText\n$originalText"
         } else {
-            "$originalText\n$translated"
+            "$originalText\n$translatedText"
         }
     }
 }

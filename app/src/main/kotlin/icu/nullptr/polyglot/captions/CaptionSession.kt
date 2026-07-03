@@ -14,6 +14,20 @@ class CaptionSession {
         return translations[normalize(original)]
     }
 
+    fun translatedCueContaining(fragment: String?): CaptionTranslation? {
+        val normalized = normalize(fragment.orEmpty())
+        if (normalized.isEmpty()) return null
+
+        for (cue in observedCues.values) {
+            val cueText = cue.normalizedText()
+            if (cueText == normalized || !cueText.contains(normalized)) continue
+
+            val translated = translations[cueText] ?: continue
+            return CaptionTranslation(cueText, translated)
+        }
+        return null
+    }
+
     fun putTranslation(original: String?, translated: String?) {
         if (original == null || translated == null) return
         translations[normalize(original)] = translated
@@ -29,12 +43,14 @@ class CaptionSession {
         return false
     }
 
-    fun observeCues(cues: Iterable<CaptionCue>): Int {
-        var count = 0
+    fun observeNewCues(cues: Iterable<CaptionCue>): List<CaptionCue> {
+        val newCues = ArrayList<CaptionCue>()
         for (cue in cues) {
-            if (observeCue(cue)) count++
+            if (observeCue(cue)) {
+                newCues += cue
+            }
         }
-        return count
+        return newCues
     }
 
     fun observeRenderedText(text: CharSequence?): Boolean {
@@ -53,4 +69,9 @@ class CaptionSession {
     private companion object {
         const val RENDERED_TEXT_LOG_INTERVAL_MS = 30_000L
     }
+
+    data class CaptionTranslation(
+        val original: String,
+        val translated: String,
+    )
 }
