@@ -23,6 +23,7 @@ object TranslationManager {
     fun translateAsync(
         text: String,
         context: String,
+        sourceLanguage: String,
         onTranslated: (original: String, translated: String) -> Unit,
     ): Boolean {
         val original = CaptionCue.normalize(text)
@@ -30,40 +31,42 @@ object TranslationManager {
             return false
         }
 
-        if (!inFlight.add(original)) {
+        val requestKey = requestKey(original, sourceLanguage)
+        if (!inFlight.add(requestKey)) {
             return false
         }
 
         return try {
             executor.execute {
                 try {
-                    val translated = translateWithRetry(original, context)
+                    val translated = translateWithRetry(original, context, sourceLanguage)
                     if (translated.isNotBlank()) {
                         onTranslated(original, translated)
                     }
                 } catch (e: Throwable) {
                     module.log(Log.WARN, TAG, "Caption translation failed, length=${original.length}", e)
                 } finally {
-                    inFlight.remove(original)
+                    inFlight.remove(requestKey)
                 }
             }
             true
         } catch (_: RejectedExecutionException) {
-            inFlight.remove(original)
+            inFlight.remove(requestKey)
             false
         }
     }
 
-    private fun translateWithRetry(text: String, context: String): String {
+    private fun translateWithRetry(text: String, context: String, sourceLanguage: String): String {
         var attempt = 0
         var lastError: Throwable? = null
         val maxRetries = module.config.maxRetries.coerceAtLeast(0)
+        val normalizedSourceLanguage = normalizedSourceLanguage(sourceLanguage)
 
         while (attempt <= maxRetries) {
             runCatching {
                 val request = TranslationRequest(
                     texts = listOf(text),
-                    sourceLanguage = "auto",
+                    sourceLanguage = normalizedSourceLanguage,
                     targetLanguage = module.config.targetLanguage,
                     context = context,
                     timeoutMs = module.config.requestTimeoutMs.coerceAtLeast(MIN_TIMEOUT_MS),
@@ -91,6 +94,17 @@ object TranslationManager {
 
     private fun retryDelayMs(attempt: Int): Long =
         BASE_RETRY_DELAY_MS * (attempt + 1)
+
+    private fun requestKey(text: String, sourceLanguage: String): String =
+        listOf(
+            module.config.provider,
+            normalizedSourceLanguage(sourceLanguage),
+            module.config.targetLanguage,
+            text,
+        ).joinToString(separator = "\n")
+
+    private fun normalizedSourceLanguage(language: String): String =
+        language.trim().ifEmpty { "auto" }
 
     private object ThreadFactory : java.util.concurrent.ThreadFactory {
         private val counter = AtomicInteger(0)

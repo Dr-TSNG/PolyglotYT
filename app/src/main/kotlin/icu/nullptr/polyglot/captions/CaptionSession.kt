@@ -33,6 +33,13 @@ class CaptionSession {
         translations[normalize(original)] = translated
     }
 
+    fun clear() {
+        translations.clear()
+        observedCues.clear()
+        renderedTexts.clear()
+        observedCueCounter.set(0)
+    }
+
     fun observeCue(cue: CaptionCue): Boolean {
         if (cue.normalizedText().isEmpty()) return false
         val previous = observedCues.putIfAbsent(cue.cacheKey(), cue)

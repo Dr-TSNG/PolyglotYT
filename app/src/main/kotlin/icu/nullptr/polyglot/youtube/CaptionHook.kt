@@ -8,14 +8,17 @@ import android.util.SparseArray
 import android.view.View
 import icu.nullptr.polyglot.captions.BilingualFormatter
 import icu.nullptr.polyglot.captions.CaptionCue
+import icu.nullptr.polyglot.captions.CaptionLanguageState
 import icu.nullptr.polyglot.captions.CaptionSession
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.translate.TranslationManager
 import icu.nullptr.polyglot.util.hook
+import icu.nullptr.polyglot.util.toExecutable
 import icu.nullptr.polyglot.util.toMethod
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.result.ClassData
 import org.luckypray.dexkit.result.MethodData
+import java.lang.reflect.Executable
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -24,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 object CaptionHook : BaseHook {
     override val name = "CaptionHook"
-    override val totalHooks = 3
+    override val totalHooks = 4
 
     private val session = CaptionSession()
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -44,6 +47,10 @@ object CaptionHook : BaseHook {
         }
 
         if (installRenderTextHooks(dexkit)) {
+            installed++
+        }
+
+        if (installCaptionLanguageHooks(dexkit)) {
             installed++
         }
 
@@ -137,6 +144,39 @@ object CaptionHook : BaseHook {
             module.log(Log.WARN, name, "Caption renderer not found")
         }
         return installed > 0
+    }
+
+    private fun installCaptionLanguageHooks(dexkit: DexKitBridge): Boolean {
+        val trackClassName = dexkit.findCaptionTrackClassName() ?: run {
+            module.log(Log.WARN, name, "Caption track class not found")
+            return false
+        }
+
+        val methods = (
+            dexkit.findCaptionTrackReturnMethods(trackClassName) +
+                dexkit.findCaptionTrackArgumentMethods(trackClassName)
+            )
+            .map { it.toExecutable() }
+            .distinctBy { it.stableId() }
+
+        if (methods.isEmpty()) {
+            module.log(Log.WARN, name, "Caption language methods not found")
+            return false
+        }
+
+        for (method in methods) {
+            hook(method) { chain ->
+                observeCaptionTrackArguments(chain, method, trackClassName)
+                val result = chain.proceed()
+                if (method is Method && method.returnType.name == trackClassName) {
+                    observeCaptionTrack(result, "${method.shortName()} result")
+                }
+                result
+            }
+        }
+
+        module.log(Log.INFO, name, "Hooked caption language trackers: ${methods.size}")
+        return true
     }
 
     private fun installOverlayUpdateHooks(dexkit: DexKitBridge): Boolean {
@@ -296,14 +336,42 @@ object CaptionHook : BaseHook {
     private fun requestTranslation(text: String, source: String) {
         if (session.translationFor(text) != null) return
 
+        val sourceLanguage = CaptionLanguageState.currentSourceLanguage()
         TranslationManager.translateAsync(
             text = text,
             context = "YouTube subtitle $source",
+            sourceLanguage = sourceLanguage,
         ) { original, translated ->
             session.putTranslation(original, translated)
-            module.log(Log.DEBUG, name, "Translated caption from $source, length=${original.length}")
+            module.log(
+                Log.DEBUG,
+                name,
+                "Translated caption from $source, sourceLanguage=$sourceLanguage, length=${original.length}",
+            )
             refreshVisibleRenderers(original, source)
         }
+    }
+
+    private fun observeCaptionTrackArguments(
+        chain: io.github.libxposed.api.XposedInterface.Chain,
+        method: Executable,
+        trackClassName: String,
+    ) {
+        for (index in method.parameterTypes.indices) {
+            if (method.parameterTypes[index].name == trackClassName) {
+                observeCaptionTrack(chain.getArg(index), "${method.shortName()} arg$index")
+            }
+        }
+    }
+
+    private fun observeCaptionTrack(track: Any?, source: String) {
+        if (!CaptionLanguageState.updateFromCaptionTrack(track, source)) return
+
+        session.clear()
+        synchronized(rendererStates) {
+            rendererStates.clear()
+        }
+        rendererSequence.set(0L)
     }
 
     private fun rememberRendererState(renderer: Any, method: Method, normalizedText: String) {
@@ -395,10 +463,10 @@ object CaptionHook : BaseHook {
         }
     }
 
-    private fun Method.shortName(): String =
+    private fun Executable.shortName(): String =
         "${declaringClass.name}#$name(${parameterTypes.joinToString { it.simpleName }})"
 
-    private fun Method.stableId(): String =
+    private fun Executable.stableId(): String =
         "${declaringClass.name}#$name#${parameterTypes.joinToString { it.name }}"
 
     private fun DexKitBridge.findCaptionTimelineBuildMethod(): MethodData? {
@@ -455,8 +523,44 @@ object CaptionHook : BaseHook {
             method.declaredClass?.hasInstanceFieldTypeInHierarchy(SPARSE_ARRAY_TYPE) == true
         }
 
+    private fun DexKitBridge.findCaptionTrackClassName(): String? =
+        findMethod {
+            matcher {
+                returnType("boolean")
+                usingEqStrings(AUTO_TRANSLATE_CAPTIONS_OPTION)
+            }
+        }
+            .filter { method -> method.isMethod && method.paramCount == 0 }
+            .firstOrNull()
+            ?.toMethod()
+            ?.declaringClass
+            ?.name
+
+    private fun DexKitBridge.findCaptionTrackReturnMethods(trackClassName: String): List<MethodData> =
+        findMethod {
+            matcher {
+                returnType(trackClassName)
+            }
+        }.filter { method ->
+            method.isMethod &&
+                !Modifier.isAbstract(method.modifiers) &&
+                (method.paramCount == 0 || method.paramTypeNames == listOf("java.lang.String"))
+        }
+
+    private fun DexKitBridge.findCaptionTrackArgumentMethods(trackClassName: String): List<MethodData> =
+        findMethod {
+            matcher {
+                returnType("void")
+                paramTypes(trackClassName)
+            }
+        }.filter { method ->
+            (method.isMethod || method.isConstructor) &&
+                !Modifier.isAbstract(method.modifiers)
+        }
+
     private const val NON_DECREASING_SUBTITLE_TIME_ERROR =
         "subtitles are not given in non-decreasing start time order"
+    private const val AUTO_TRANSLATE_CAPTIONS_OPTION = "AUTO_TRANSLATE_CAPTIONS_OPTION"
     private const val EDITABLE_TYPE = "android.text.Editable"
     private const val SPARSE_ARRAY_TYPE = "android.util.SparseArray"
     private const val RENDERER_STATE_TTL_MS = 2_000L
