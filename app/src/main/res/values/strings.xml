@@ -5,6 +5,7 @@
 
     <string name="enabled">Enabled</string>
     <string name="disabled">Disabled</string>
+    <string name="selected">Selected</string>
     <plurals name="hook_failed">
         <item quantity="one">PolyglotYT: %d hook failed to install. Check logs for details.</item>
         <item quantity="other">PolyglotYT: %d hooks failed to install. Check logs for details.</item>

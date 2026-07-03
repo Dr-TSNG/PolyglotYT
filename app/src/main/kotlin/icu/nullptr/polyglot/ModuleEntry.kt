@@ -1,6 +1,5 @@
 package icu.nullptr.polyglot
 
-import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.content.res.AssetManager
@@ -20,7 +19,6 @@ import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import java.util.concurrent.atomic.AtomicBoolean
 
-@SuppressLint("StaticFieldLeak")
 lateinit var module: ModuleEntry
 
 private const val TARGET_PACKAGE = "com.google.android.youtube"

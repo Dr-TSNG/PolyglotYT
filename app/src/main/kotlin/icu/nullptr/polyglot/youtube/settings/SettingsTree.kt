@@ -89,6 +89,6 @@ internal fun SettingsNode.summary(): CharSequence? =
     when (this) {
         is SwitchSettingsNode -> summary()
         is SelectionSettingsNode -> selectedLabel()
-        is OptionSettingsNode -> if (selected()) "Selected" else ""
+        is OptionSettingsNode -> if (selected()) module.res.getString(R.string.selected) else ""
         is SettingsScreenNode -> null
     }
