@@ -24,29 +24,31 @@ import java.util.concurrent.atomic.AtomicLong
 
 object CaptionHook : BaseHook {
     override val name = "CaptionHook"
+    override val totalHooks = 3
 
     private val session = CaptionSession()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val rendererStates = WeakHashMap<Any, RendererState>()
     private val rendererSequence = AtomicLong(0L)
     private val applyingTranslatedText = ThreadLocal.withInitial { false }
-    private lateinit var translationManager: TranslationManager
 
-    override fun install(dexkit: DexKitBridge): Boolean {
-        translationManager = TranslationManager(module.config)
-
+    override fun install(dexkit: DexKitBridge): Int {
         var installed = 0
 
         if (installTimelineBuildHook(dexkit)) {
             installed++
         }
 
-        installed += installOverlayUpdateHooks(dexkit)
+        if (installOverlayUpdateHooks(dexkit)) {
+            installed++
+        }
 
-        installed += installRenderTextHooks(dexkit)
+        if (installRenderTextHooks(dexkit)) {
+            installed++
+        }
 
         module.log(Log.INFO, name, "Installed $installed caption hook(s)")
-        return installed > 0
+        return installed
     }
 
     fun formatCaption(original: CharSequence?): CharSequence {
@@ -56,8 +58,8 @@ object CaptionHook : BaseHook {
 
     private fun installTimelineBuildHook(dexkit: DexKitBridge): Boolean {
         val method = dexkit.findCaptionTimelineBuildMethod()
-            ?.toHookMethodOrNull("caption timeline builder") ?: run {
-            module.log(Log.WARN, name, "Caption timeline builder not found by DexKit features")
+            ?.toMethod() ?: run {
+            module.log(Log.WARN, name, "Caption timeline builder not found")
             return false
         }
 
@@ -75,9 +77,9 @@ object CaptionHook : BaseHook {
         return true
     }
 
-    private fun installRenderTextHooks(dexkit: DexKitBridge): Int {
+    private fun installRenderTextHooks(dexkit: DexKitBridge): Boolean {
         val methods = dexkit.findCaptionRenderTextMethods()
-            .mapNotNull { it.toHookMethodOrNull("caption renderer") }
+            .map { it.toMethod() }
             .filter { method ->
                 View::class.java.isAssignableFrom(method.declaringClass) &&
                     method.declaringClass.hasInstanceFieldAssignableTo(Editable::class.java)
@@ -132,14 +134,14 @@ object CaptionHook : BaseHook {
         }
 
         if (installed == 0) {
-            module.log(Log.WARN, name, "Caption renderer not found by DexKit features")
+            module.log(Log.WARN, name, "Caption renderer not found")
         }
-        return installed
+        return installed > 0
     }
 
-    private fun installOverlayUpdateHooks(dexkit: DexKitBridge): Int {
+    private fun installOverlayUpdateHooks(dexkit: DexKitBridge): Boolean {
         val methods = dexkit.findCaptionOverlayUpdateMethods()
-            .mapNotNull { it.toHookMethodOrNull("caption overlay update") }
+            .map { it.toMethod() }
             .filter { method ->
                 View::class.java.isAssignableFrom(method.declaringClass) &&
                     method.declaringClass.hasInstanceFieldAssignableTo(SparseArray::class.java)
@@ -162,17 +164,10 @@ object CaptionHook : BaseHook {
         }
 
         if (installed == 0) {
-            module.log(Log.WARN, name, "Caption overlay update methods not found by DexKit features")
+            module.log(Log.WARN, name, "Caption overlay update methods not found")
         }
-        return installed
+        return installed > 0
     }
-
-    private fun MethodData.toHookMethodOrNull(label: String): Method? =
-        runCatching {
-            toMethod(module.hostClassLoader)
-        }.onFailure { e ->
-            module.log(Log.WARN, name, "Unable to load $label method $this", e)
-        }.getOrNull()
 
     private fun observeTimeline(result: Any?): List<CaptionCue> {
         if (result == null) return emptyList()
@@ -210,7 +205,7 @@ object CaptionHook : BaseHook {
     private fun observeCueList(arg: Any?): List<CaptionCue> {
         val list = arg as? List<*> ?: return emptyList()
         val cues = list.mapNotNull { item ->
-            if (item == null) null else item.toCaptionCue()
+            item?.toCaptionCue()
         }
         return session.observeNewCues(cues)
     }
@@ -301,7 +296,7 @@ object CaptionHook : BaseHook {
     private fun requestTranslation(text: String, source: String) {
         if (session.translationFor(text) != null) return
 
-        translationManager.translateAsync(
+        TranslationManager.translateAsync(
             text = text,
             context = "YouTube subtitle $source",
         ) { original, translated ->

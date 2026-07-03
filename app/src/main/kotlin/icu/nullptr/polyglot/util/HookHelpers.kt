@@ -2,6 +2,7 @@ package icu.nullptr.polyglot.util
 
 import icu.nullptr.polyglot.module
 import io.github.libxposed.api.XposedInterface
+import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -19,6 +20,9 @@ fun Class<*>.findMethodExactOrNull(
     methodName: String,
     vararg parameterTypes: Class<*>,
 ): Method? = runCatching { findMethodExact(methodName, *parameterTypes) }.getOrNull()
+
+fun <T> Class<T>.findConstructorExact(vararg parameterTypes: Class<*>): Constructor<T> =
+    getDeclaredConstructor(*parameterTypes).apply { isAccessible = true }
 
 fun Class<*>.findFieldExact(fieldName: String): Field =
     getDeclaredField(fieldName).apply { isAccessible = true }

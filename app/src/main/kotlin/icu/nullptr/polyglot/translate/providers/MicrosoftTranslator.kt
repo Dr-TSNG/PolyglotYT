@@ -12,7 +12,12 @@ import java.net.URLEncoder
 import java.util.Base64
 import java.util.Locale
 
-class MicrosoftTranslator : Translator {
+object MicrosoftTranslator : Translator {
+    const val AUTH_ENDPOINT = "https://edge.microsoft.com/translate/auth"
+    const val TRANSLATE_ENDPOINT = "https://api-edge.cognitive.microsofttranslator.com/translate"
+    const val TOKEN_REFRESH_MARGIN_MS = 60_000L
+    const val FALLBACK_TOKEN_TTL_MS = 8 * 60_000L
+
     @Volatile
     private var token: String = ""
 
@@ -128,11 +133,4 @@ class MicrosoftTranslator : Translator {
 
     private fun urlEncode(value: String): String =
         URLEncoder.encode(value, Charsets.UTF_8.name())
-
-    private companion object {
-        const val AUTH_ENDPOINT = "https://edge.microsoft.com/translate/auth"
-        const val TRANSLATE_ENDPOINT = "https://api-edge.cognitive.microsofttranslator.com/translate"
-        const val TOKEN_REFRESH_MARGIN_MS = 60_000L
-        const val FALLBACK_TOKEN_TTL_MS = 8 * 60_000L
-    }
 }

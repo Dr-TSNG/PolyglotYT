@@ -10,15 +10,11 @@ class ConfigManager(context: Context, directory: File) {
 
     var enabled: Boolean by Pref("enabled", true)
 
-    var sourceLanguage: String by Pref("source_language", "auto")
+    var provider: String by Pref("translator_provider", "microsoft")
 
     var targetLanguage: String by Pref("target_language", "zh-Hans")
 
-    var provider: String by Pref("translator_provider", "microsoft")
-
-    var bilingualOrder: String by Pref("bilingual_order", "original_first")
-
-    var maxConcurrency: Int by Pref("max_concurrency", 4)
+    var subtitleMode: String by Pref("bilingual_order", "original_first")
 
     var requestTimeoutMs: Int by Pref("request_timeout_ms", 45000)
 

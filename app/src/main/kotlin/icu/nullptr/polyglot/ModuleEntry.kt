@@ -1,17 +1,26 @@
 package icu.nullptr.polyglot
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
+import android.content.res.AssetManager
+import android.content.res.Resources
 import android.util.Log
+import android.widget.Toast
 import icu.nullptr.polyglot.core.ConfigManager
 import icu.nullptr.polyglot.core.FileManager
 import icu.nullptr.polyglot.util.DexKitRuntime
 import icu.nullptr.polyglot.util.findAndHookAfter
+import icu.nullptr.polyglot.util.findClass
+import icu.nullptr.polyglot.util.findConstructorExact
+import icu.nullptr.polyglot.util.findMethodExact
 import icu.nullptr.polyglot.youtube.CaptionHook
+import icu.nullptr.polyglot.youtube.SettingsHook
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import java.util.concurrent.atomic.AtomicBoolean
 
+@SuppressLint("StaticFieldLeak")
 lateinit var module: ModuleEntry
 
 private const val TARGET_PACKAGE = "com.google.android.youtube"
@@ -22,6 +31,7 @@ class ModuleEntry : XposedModule() {
 
     lateinit var hostClassLoader: ClassLoader
     lateinit var config: ConfigManager
+    lateinit var res: Resources
 
     private val hookInstalled = AtomicBoolean(false)
 
@@ -56,25 +66,41 @@ class ModuleEntry : XposedModule() {
             fileManager = FileManager(context)
             config = ConfigManager(context, fileManager.configDir)
 
+            val amClass = findClass("android.content.res.AssetManager", javaClass.classLoader!!)
+            val am = amClass.findConstructorExact().newInstance() as AssetManager
+            amClass.findMethodExact("addAssetPath", String::class.java)
+                .invoke(am, moduleApplicationInfo.sourceDir)
+            res = Resources(am, context.resources.displayMetrics, context.resources.configuration)
+
             val packageInfo = application.packageManager.getPackageInfo(param.packageName, 0)
             val tag = "${param.packageName}:${packageInfo.longVersionCode}"
             DexKitRuntime.use(application.packageCodePath) {
                 module.log(Log.INFO, TAG, "DexKit bridge ready for $tag")
 
                 val hooks = listOf(
+                    SettingsHook,
                     CaptionHook,
                 )
 
                 var successful = 0
+                var total = 0
                 for (hook in hooks) {
+                    total += hook.totalHooks
                     runCatching {
-                        if (hook.install(it)) successful++
+                        successful += hook.install(it)
                     }.onFailure { e ->
                         module.log(Log.ERROR, TAG, "Error while installing hook ${hook.name}", e)
                     }
                 }
 
-                module.log(Log.INFO, TAG, "$successful/${hooks.size} hooks installed successfully")
+                module.log(Log.INFO, TAG, "$successful/$total hooks installed successfully")
+
+                if (successful < total) {
+                    val text = res.getQuantityString(
+                        R.plurals.hook_failed, total - successful, total - successful
+                    )
+                    Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+                }
             }
         }
 

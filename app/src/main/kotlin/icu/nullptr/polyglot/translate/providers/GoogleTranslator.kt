@@ -9,7 +9,9 @@ import java.net.URL
 import java.net.URLEncoder
 import java.util.Locale
 
-class GoogleTranslator : Translator {
+object GoogleTranslator : Translator {
+    const val ENDPOINT = "https://translate.googleapis.com/translate_a/single"
+
     override fun translate(request: TranslationRequest): TranslationResult =
         TranslationResult(
             texts = request.texts.map { text ->
@@ -86,8 +88,4 @@ class GoogleTranslator : Translator {
 
     private fun urlEncode(value: String): String =
         URLEncoder.encode(value, Charsets.UTF_8.name())
-
-    private companion object {
-        const val ENDPOINT = "https://translate.googleapis.com/translate_a/single"
-    }
 }

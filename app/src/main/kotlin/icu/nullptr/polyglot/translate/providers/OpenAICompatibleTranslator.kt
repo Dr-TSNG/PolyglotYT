@@ -3,16 +3,18 @@ package icu.nullptr.polyglot.translate.providers
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import icu.nullptr.polyglot.core.ConfigManager
+import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.translate.TranslationRequest
 import icu.nullptr.polyglot.translate.TranslationResult
 import icu.nullptr.polyglot.translate.Translator
 import java.net.HttpURLConnection
 import java.net.URL
 
-class OpenAICompatibleTranslator(
-    private val prefs: ConfigManager,
-) : Translator {
+object OpenAICompatibleTranslator : Translator {
+    const val DEFAULT_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+    const val DEFAULT_MODEL = "gpt-4o-mini"
+    val THINK_BLOCK = Regex("^<think>[\\s\\S]*?</think>")
+
     override fun translate(request: TranslationRequest): TranslationResult =
         TranslationResult(
             texts = request.texts.map { text ->
@@ -21,10 +23,10 @@ class OpenAICompatibleTranslator(
         )
 
     private fun translateOne(text: String, request: TranslationRequest): String {
-        val apiKey = prefs.openAiApiKey
+        val apiKey = module.config.openAiApiKey
         require(apiKey.isNotBlank()) { "OpenAI-compatible API key is not configured" }
 
-        val connection = URL(prefs.openAiEndpoint.ifBlank { DEFAULT_ENDPOINT })
+        val connection = URL(module.config.openAiEndpoint.ifBlank { DEFAULT_ENDPOINT })
             .openConnection() as HttpURLConnection
         connection.requestMethod = "POST"
         connection.doOutput = true
@@ -44,8 +46,8 @@ class OpenAICompatibleTranslator(
     }
 
     private fun buildRequestBody(text: String, request: TranslationRequest): String {
-        val systemPrompt = prefs.openAiSystemPrompt
-        val userPrompt = prefs.openAiUserPrompt
+        val systemPrompt = module.config.openAiSystemPrompt
+        val userPrompt = module.config.openAiUserPrompt
             .replace("{{to}}", request.targetLanguage)
             .replace("{{origin}}", text)
 
@@ -65,7 +67,7 @@ class OpenAICompatibleTranslator(
         }
 
         return JsonObject().apply {
-            addProperty("model", prefs.openAiModel.ifBlank { DEFAULT_MODEL })
+            addProperty("model", module.config.openAiModel.ifBlank { DEFAULT_MODEL })
             addProperty("temperature", 1.0)
             add("messages", messages)
         }.toString()
@@ -96,10 +98,4 @@ class OpenAICompatibleTranslator(
         } finally {
             disconnect()
         }
-
-    private companion object {
-        const val DEFAULT_ENDPOINT = "https://api.openai.com/v1/chat/completions"
-        const val DEFAULT_MODEL = "gpt-4o-mini"
-        val THINK_BLOCK = Regex("^<think>[\\s\\S]*?</think>")
-    }
 }

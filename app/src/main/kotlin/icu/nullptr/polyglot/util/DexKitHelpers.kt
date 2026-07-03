@@ -1,5 +1,6 @@
 package icu.nullptr.polyglot.util
 
+import icu.nullptr.polyglot.module
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.result.MethodData
 import java.lang.reflect.Method
@@ -21,5 +22,5 @@ object DexKitRuntime {
     }
 }
 
-fun MethodData.toMethod(classLoader: ClassLoader): Method =
-    getMethodInstance(classLoader).apply { isAccessible = true }
+fun MethodData.toMethod(): Method =
+    getMethodInstance(module.hostClassLoader).apply { isAccessible = true }

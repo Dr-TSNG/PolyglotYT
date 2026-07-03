@@ -2,4 +2,19 @@
 <resources>
     <string name="app_name">PolyglotYT</string>
     <string name="app_description">Immersive bilingual subtitle translation for YouTube.</string>
+
+    <string name="enabled">Enabled</string>
+    <string name="disabled">Disabled</string>
+    <plurals name="hook_failed">
+        <item quantity="one">PolyglotYT: %d hook failed to install. Check logs for details.</item>
+        <item quantity="other">PolyglotYT: %d hooks failed to install. Check logs for details.</item>
+    </plurals>
+
+    <string name="enable_module">Enable Module</string>
+    <string name="translation_service">Translation Service</string>
+    <string name="target_language">Target Language</string>
+    <string name="subtitle_mode">Subtitle Mode</string>
+    <string name="subtitle_mode_original_first">Original above translation</string>
+    <string name="subtitle_mode_translation_first">Translation above original</string>
+    <string name="subtitle_mode_translation_only">Translation only</string>
 </resources>
