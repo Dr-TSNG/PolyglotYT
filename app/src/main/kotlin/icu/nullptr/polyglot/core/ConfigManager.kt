@@ -10,11 +10,11 @@ class ConfigManager(context: Context, directory: File) {
 
     var enabled: Boolean by Pref("enabled", true)
 
-    var provider: String by Pref("translator_provider", "microsoft")
+    var provider: String by Pref("translator_provider", PROVIDER_GOOGLE)
 
     var targetLanguage: String by Pref("target_language", "zh-Hans")
 
-    var subtitleMode: String by Pref("bilingual_order", "original_first")
+    var subtitleMode: String by Pref("bilingual_order", SUBTITLE_ORIGINAL_FIRST)
 
     var requestTimeoutMs: Int by Pref("request_timeout_ms", 45000)
 
@@ -74,5 +74,15 @@ class ConfigManager(context: Context, directory: File) {
     init {
         MMKV.initialize(context, directory.absolutePath)
         kv = MMKV.defaultMMKV()
+    }
+
+    companion object {
+        const val PROVIDER_GOOGLE = "google"
+        const val PROVIDER_MICROSOFT = "microsoft"
+        const val PROVIDER_OPENAI = "openai"
+
+        const val SUBTITLE_ORIGINAL_FIRST = "original_first"
+        const val SUBTITLE_TRANSLATION_FIRST = "translation_first"
+        const val SUBTITLE_TRANSLATION_ONLY = "translation_only"
     }
 }

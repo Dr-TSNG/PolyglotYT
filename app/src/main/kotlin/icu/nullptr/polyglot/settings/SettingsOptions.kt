@@ -1,15 +1,15 @@
 package icu.nullptr.polyglot.settings
 
 import icu.nullptr.polyglot.R
+import icu.nullptr.polyglot.core.ConfigManager
 import icu.nullptr.polyglot.module
 
 object SettingsOptions {
-    const val PROVIDER_OPENAI = "openai"
 
     val providers = listOf(
-        SettingsOption("microsoft", "Microsoft Translator"),
-        SettingsOption("google", "Google Translate"),
-        SettingsOption(PROVIDER_OPENAI, "OpenAI compatible"),
+        SettingsOption(ConfigManager.PROVIDER_GOOGLE, "Google Translate"),
+        SettingsOption(ConfigManager.PROVIDER_MICROSOFT, "Microsoft Translator"),
+        SettingsOption(ConfigManager.PROVIDER_OPENAI, "OpenAI compatible"),
     )
 
     val targetLanguages = listOf(
@@ -25,9 +25,9 @@ object SettingsOptions {
     )
 
     val subtitleMode = listOf(
-        SettingsOption("original_first", module.res.getString(R.string.subtitle_mode_original_first)),
-        SettingsOption("translation_first", module.res.getString(R.string.subtitle_mode_translation_first)),
-        SettingsOption("translation_only", module.res.getString(R.string.subtitle_mode_translation_only))
+        SettingsOption(ConfigManager.SUBTITLE_ORIGINAL_FIRST, module.res.getString(R.string.subtitle_mode_original_first)),
+        SettingsOption(ConfigManager.SUBTITLE_TRANSLATION_FIRST, module.res.getString(R.string.subtitle_mode_translation_first)),
+        SettingsOption(ConfigManager.SUBTITLE_TRANSLATION_ONLY, module.res.getString(R.string.subtitle_mode_translation_only))
     )
 
     fun enabledSummary(enabled: Boolean): String =

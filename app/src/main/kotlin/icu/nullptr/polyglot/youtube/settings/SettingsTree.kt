@@ -2,6 +2,7 @@ package icu.nullptr.polyglot.youtube.settings
 
 import android.text.InputType
 import icu.nullptr.polyglot.R
+import icu.nullptr.polyglot.core.ConfigManager
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.settings.SettingsOption
 import icu.nullptr.polyglot.settings.SettingsOptions
@@ -40,7 +41,7 @@ internal object PolyglotSettingsTree {
                     key = "$ENTRY_KEY.openai_endpoint",
                     title = module.res.getString(R.string.openai_endpoint),
                     icon = SettingsIcon.Endpoint,
-                    visible = { module.config.provider == SettingsOptions.PROVIDER_OPENAI },
+                    visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
                     inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI,
                     value = { module.config.openAiEndpoint },
                     summary = { SettingsOptions.textOrNotSet(module.config.openAiEndpoint) },
@@ -50,7 +51,7 @@ internal object PolyglotSettingsTree {
                     key = "$ENTRY_KEY.openai_api_key",
                     title = module.res.getString(R.string.openai_api_key),
                     icon = SettingsIcon.ApiKey,
-                    visible = { module.config.provider == SettingsOptions.PROVIDER_OPENAI },
+                    visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
                     inputType = InputType.TYPE_CLASS_TEXT or
                         InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or
                         InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS,
@@ -62,7 +63,7 @@ internal object PolyglotSettingsTree {
                     key = "$ENTRY_KEY.openai_model",
                     title = module.res.getString(R.string.openai_model),
                     icon = SettingsIcon.Model,
-                    visible = { module.config.provider == SettingsOptions.PROVIDER_OPENAI },
+                    visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
                     inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS,
                     value = { module.config.openAiModel },
                     summary = { SettingsOptions.textOrNotSet(module.config.openAiModel) },

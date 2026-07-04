@@ -1,5 +1,6 @@
 package icu.nullptr.polyglot.captions
 
+import icu.nullptr.polyglot.core.ConfigManager
 import icu.nullptr.polyglot.module
 
 object BilingualFormatter {
@@ -10,8 +11,9 @@ object BilingualFormatter {
             return original ?: ""
         }
         return when (module.config.subtitleMode) {
-            "original_first" -> "$originalText\n$translatedText"
-            "translation_first" -> "$translatedText\n$originalText"
+            ConfigManager.SUBTITLE_ORIGINAL_FIRST -> "$originalText\n$translatedText"
+            ConfigManager.SUBTITLE_TRANSLATION_FIRST -> "$translatedText\n$originalText"
+            ConfigManager.SUBTITLE_TRANSLATION_ONLY -> translatedText
             else -> translatedText
         }
     }
