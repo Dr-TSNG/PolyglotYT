@@ -1,8 +1,9 @@
 package icu.nullptr.polyglot.youtube
 
-import android.util.Log
-import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.util.hook
+import icu.nullptr.polyglot.util.logD
+import icu.nullptr.polyglot.util.logI
+import icu.nullptr.polyglot.util.logW
 import icu.nullptr.polyglot.youtube.settings.HostPreferenceAdapter
 import icu.nullptr.polyglot.youtube.settings.PreferenceMethods
 import icu.nullptr.polyglot.youtube.settings.SettingsPageController
@@ -27,13 +28,13 @@ object SettingsHook : BaseHook {
         if (installPreferenceResourceHook(methods)) installed++
         if (installPreferenceClickHook(methods)) installed++
 
-        module.log(Log.INFO, name, "Installed $installed settings hook(s)")
+        logI(name, "Installed $installed settings hook(s)")
         return installed
     }
 
     private fun installPreferenceResourceHook(methods: PreferenceMethods): Boolean {
         val resourceLoadMethod = methods.resourceLoad ?: run {
-            module.log(Log.WARN, name, "Preference resource loader not found")
+            logW(name, "Preference resource loader not found")
             return false
         }
 
@@ -47,13 +48,13 @@ object SettingsHook : BaseHook {
             result
         }
 
-        module.log(Log.INFO, name, "Hooked preference resource loader: ${resourceLoadMethod.shortName()}")
+        logD(name, "Hooked preference resource loader: ${resourceLoadMethod.shortName()}")
         return true
     }
 
     private fun installPreferenceClickHook(methods: PreferenceMethods): Boolean {
         val clickMethod = methods.click ?: run {
-            module.log(Log.WARN, name, "Preference click dispatcher not found")
+            logW(name, "Preference click dispatcher not found")
             return false
         }
 
@@ -65,7 +66,7 @@ object SettingsHook : BaseHook {
             chain.proceed()
         }
 
-        module.log(Log.INFO, name, "Hooked preference click dispatcher: ${clickMethod.shortName()}")
+        logD(name, "Hooked preference click dispatcher: ${clickMethod.shortName()}")
         return true
     }
 }

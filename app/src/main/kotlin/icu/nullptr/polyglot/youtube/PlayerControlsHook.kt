@@ -3,7 +3,6 @@ package icu.nullptr.polyglot.youtube
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,6 +12,8 @@ import android.widget.Toast
 import icu.nullptr.polyglot.R
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.util.findAndHookAfter
+import icu.nullptr.polyglot.util.logD
+import icu.nullptr.polyglot.util.logW
 import org.luckypray.dexkit.DexKitBridge
 import java.util.WeakHashMap
 
@@ -38,7 +39,7 @@ object PlayerControlsHook : BaseHook {
             }
         }
 
-        module.log(Log.INFO, name, "Hooked player controls addView")
+        logD(name, "Hooked player controls addView")
         return 1
     }
 
@@ -49,9 +50,8 @@ object PlayerControlsHook : BaseHook {
             val existingButtons = findTranslateButtons()
             val translateButton = translateButtons[subtitleButton]?.takeIf { indexOfChild(it) >= 0 }
                 ?: existingButtons.firstOrNull()
-                ?: createTranslateButton(subtitleButton)?.also { button ->
-                    module.log(
-                        Log.INFO,
+                ?: createTranslateButton(subtitleButton)?.also { _ ->
+                    logD(
                         name,
                         "Inserted player translate button: parent=${javaClass.name} " +
                                 "subtitleParams=${subtitleButton.layoutParams?.javaClass?.name}",
@@ -68,7 +68,7 @@ object PlayerControlsHook : BaseHook {
             syncTranslateButtonState(subtitleButton, translateButton)
             bindTranslateButton(subtitleButton, translateButton)
         }.onFailure { e ->
-            module.log(Log.WARN, name, "Unable to insert player translate button", e)
+            logW(name, "Unable to insert player translate button", e)
         }
     }
 
@@ -97,7 +97,7 @@ object PlayerControlsHook : BaseHook {
             module.config.enabled = !module.config.enabled
             syncTranslateButtonState(subtitleButton, button)
             Toast.makeText(context, translateContentDescription(), Toast.LENGTH_SHORT).show()
-            module.log(Log.INFO, name, "Player translate button changed: enabled=${module.config.enabled}")
+            logD(name, "Player translate button changed: enabled=${module.config.enabled}")
         }
         return button
     }

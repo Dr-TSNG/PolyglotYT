@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.content.res.AssetManager
 import android.content.res.Resources
-import android.util.Log
 import android.widget.Toast
 import icu.nullptr.polyglot.core.ConfigManager
 import icu.nullptr.polyglot.core.FileManager
@@ -13,6 +12,8 @@ import icu.nullptr.polyglot.util.findAndHookAfter
 import icu.nullptr.polyglot.util.findClass
 import icu.nullptr.polyglot.util.findConstructorExact
 import icu.nullptr.polyglot.util.findMethodExact
+import icu.nullptr.polyglot.util.logE
+import icu.nullptr.polyglot.util.logI
 import icu.nullptr.polyglot.youtube.CaptionHook
 import icu.nullptr.polyglot.youtube.PlayerControlsHook
 import icu.nullptr.polyglot.youtube.SettingsHook
@@ -41,7 +42,7 @@ class ModuleEntry : XposedModule() {
         }
 
         module = this
-        module.log(Log.INFO, TAG, "Loaded in framework $frameworkName API $apiVersion")
+        logI(TAG, "Loaded in framework $frameworkName API $apiVersion")
     }
 
     override fun onPackageReady(param: XposedModuleInterface.PackageReadyParam) {
@@ -74,7 +75,7 @@ class ModuleEntry : XposedModule() {
             val packageInfo = application.packageManager.getPackageInfo(param.packageName, 0)
             val tag = "${param.packageName}:${packageInfo.longVersionCode}"
             DexKitRuntime.use(application.packageCodePath) {
-                module.log(Log.INFO, TAG, "DexKit bridge ready for $tag")
+                logI(TAG, "DexKit bridge ready for $tag")
 
                 val hooks = listOf(
                     SettingsHook,
@@ -89,11 +90,11 @@ class ModuleEntry : XposedModule() {
                     runCatching {
                         successful += hook.install(it)
                     }.onFailure { e ->
-                        module.log(Log.ERROR, TAG, "Error while installing hook ${hook.name}", e)
+                        logE(TAG, "Error while installing hook ${hook.name}: ${e.message}")
                     }
                 }
 
-                module.log(Log.INFO, TAG, "$successful/$total hooks installed successfully")
+                logI(TAG, "$successful/$total hooks installed successfully")
 
                 if (successful < total) {
                     val text = res.getQuantityString(
@@ -104,6 +105,6 @@ class ModuleEntry : XposedModule() {
             }
         }
 
-        module.log(Log.INFO, TAG, "Application.attach hook installed")
+        logI(TAG, "Application.attach hook installed")
     }
 }

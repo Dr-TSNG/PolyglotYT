@@ -6,7 +6,6 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.EditText
@@ -17,6 +16,8 @@ import icu.nullptr.polyglot.R
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.translate.ConnectivityTestResult
 import icu.nullptr.polyglot.translate.ConnectivityTester
+import icu.nullptr.polyglot.util.logD
+import icu.nullptr.polyglot.util.logW
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToInt
@@ -322,18 +323,14 @@ internal class NativeSettingsPage(
             return
         }
 
-        val callback = OnBackInvokedCallback {
-            if (navigateBack()) {
-                module.log(Log.INFO, TAG, "Handled PolyglotYT native settings system back")
-            }
-        }
+        val callback = OnBackInvokedCallback { navigateBack() }
 
         runCatching {
             hostActivity.onBackInvokedDispatcher.registerOnBackInvokedCallback(BACK_CALLBACK_PRIORITY, callback)
             systemBackCallback = callback
-            module.log(Log.INFO, TAG, "Registered PolyglotYT native settings system back callback")
+            logD(TAG, "Registered PolyglotYT native settings system back callback")
         }.onFailure { e ->
-            module.log(Log.WARN, TAG, "Unable to register PolyglotYT native settings system back callback", e)
+            logW(TAG, "Unable to register PolyglotYT native settings system back callback", e)
         }
     }
 
@@ -348,9 +345,9 @@ internal class NativeSettingsPage(
 
         runCatching {
             hostActivity.onBackInvokedDispatcher.unregisterOnBackInvokedCallback(callback)
-            module.log(Log.INFO, TAG, "Unregistered PolyglotYT native settings system back callback")
+            logD(TAG, "Unregistered PolyglotYT native settings system back callback")
         }.onFailure { e ->
-            module.log(Log.WARN, TAG, "Unable to unregister PolyglotYT native settings system back callback", e)
+            logW(TAG, "Unable to unregister PolyglotYT native settings system back callback", e)
         }
     }
 

@@ -1,9 +1,11 @@
 package icu.nullptr.polyglot.youtube.settings
 
 import android.app.Activity
-import android.util.Log
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.util.hook
+import icu.nullptr.polyglot.util.logD
+import icu.nullptr.polyglot.util.logI
+import icu.nullptr.polyglot.util.logW
 import java.util.WeakHashMap
 
 internal class SettingsPageController(
@@ -41,7 +43,7 @@ internal class SettingsPageController(
             if (existingEntry != null) {
                 nativePages[existingEntry] = createPage()
                 activity?.let { installBackHookForActivity(it) }
-                module.log(Log.INFO, TAG, "Rebound native settings entry in $resourceEntryName")
+                logI(TAG, "Rebound native settings entry in $resourceEntryName")
                 return
             }
 
@@ -61,19 +63,19 @@ internal class SettingsPageController(
 
             if (adapter.addPreference(rootScreen, entry, classes.preference)) {
                 nativePages[entry] = page
-                module.log(Log.INFO, TAG, "Injected native settings entry into $resourceEntryName")
+                logD(TAG, "Injected native settings entry into $resourceEntryName")
             } else {
-                module.log(Log.WARN, TAG, "Unable to add native settings entry into $resourceEntryName")
+                logW(TAG, "Unable to add native settings entry into $resourceEntryName")
             }
         }.onFailure { e ->
-            module.log(Log.WARN, TAG, "Unable to inject native settings entry into $resourceEntryName", e)
+            logW(TAG, "Unable to inject native settings entry into $resourceEntryName", e)
         }
     }
 
     private fun detachActivePageForHostRoot(activity: Activity, resourceEntryName: String) {
         val page = activePagesByActivity[activity] ?: return
         page.detachFromHostRoot()
-        module.log(Log.INFO, TAG, "Detached native settings page after host root reload in $resourceEntryName")
+        logD(TAG, "Detached native settings page after host root reload in $resourceEntryName")
     }
 
     fun dispatchPreferenceClick(preference: Any): Boolean {
@@ -82,7 +84,6 @@ internal class SettingsPageController(
         }
 
         nativePages[preference]?.let { page ->
-            module.log(Log.INFO, TAG, "Opening PolyglotYT native settings page")
             page.open()
             return true
         }
@@ -121,7 +122,7 @@ internal class SettingsPageController(
                     it.parameterCount == 0 &&
                     it.returnType == Void.TYPE
             } ?: run {
-            module.log(Log.WARN, TAG, "Unable to find settings activity back method")
+            logW(TAG, "Unable to find settings activity back method")
             return
         }
 
@@ -134,7 +135,7 @@ internal class SettingsPageController(
             chain.proceed()
         }
 
-        module.log(Log.INFO, TAG, "Hooked settings activity back method: ${method.shortName()}")
+        logD(TAG, "Hooked settings activity back method: ${method.shortName()}")
     }
 
     private fun hookActivityFinishMethod(activityClass: Class<*>) {
@@ -144,7 +145,7 @@ internal class SettingsPageController(
                     it.parameterCount == 0 &&
                     it.returnType == Void.TYPE
             } ?: run {
-            module.log(Log.WARN, TAG, "Unable to find settings activity finish method")
+            logW(TAG, "Unable to find settings activity finish method")
             return
         }
 
@@ -157,14 +158,14 @@ internal class SettingsPageController(
             chain.proceed()
         }
 
-        module.log(Log.INFO, TAG, "Hooked settings activity finish method: ${method.shortName()}")
+        logD(TAG, "Hooked settings activity finish method: ${method.shortName()}")
     }
 
     private fun handleActivityBack(activity: Activity, source: String): Boolean {
         val page = activePagesByActivity[activity] ?: return false
         if (!page.navigateBack()) return false
 
-        module.log(Log.INFO, TAG, "Handled PolyglotYT native settings $source")
+        logI(TAG, "Handled PolyglotYT native settings $source")
         return true
     }
 

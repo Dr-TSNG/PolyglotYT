@@ -2,9 +2,9 @@ package icu.nullptr.polyglot.youtube.settings
 
 import android.content.Context
 import android.graphics.drawable.Drawable
-import android.util.Log
 import android.util.TypedValue
 import icu.nullptr.polyglot.module
+import icu.nullptr.polyglot.util.logW
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
@@ -121,20 +121,20 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
         if (icon == null) return
 
         val drawable = icon.loadDrawable(context) ?: run {
-            module.log(Log.WARN, TAG, "Unable to resolve settings icon for ${icon.name}")
+            logW(TAG, "Unable to resolve settings icon for ${icon.name}")
             return
         }
         val setter = preferenceIconSetters[preferenceClass] ?: preferenceClass.findIconSetter()
             ?.also { preferenceIconSetters[preferenceClass] = it }
         if (setter == null) {
-            module.log(Log.WARN, TAG, "Unable to find preference icon setter")
+            logW(TAG, "Unable to find preference icon setter")
             return
         }
 
         runCatching {
             setter.invoke(this, drawable)
         }.onFailure { e ->
-            module.log(Log.WARN, TAG, "Unable to call preference icon setter", e)
+            logW(TAG, "Unable to call preference icon setter", e)
         }
     }
 
@@ -181,14 +181,14 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
     ) {
         val layoutId = context.resourceId(layoutName, "layout")
         if (layoutId == 0) {
-            module.log(Log.WARN, TAG, "Unable to resolve preference layout $layoutName")
+            logW(TAG, "Unable to resolve preference layout $layoutName")
             return
         }
 
         val layoutField = preferenceLayoutFields[preferenceClass] ?: preferenceClass.findLayoutResourceField(context)
             ?.also { preferenceLayoutFields[preferenceClass] = it }
         if (layoutField == null) {
-            module.log(Log.WARN, TAG, "Unable to find preference layout field")
+            logW(TAG, "Unable to find preference layout field")
             return
         }
 
@@ -196,7 +196,7 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
             layoutField.isAccessible = true
             layoutField.setInt(this, layoutId)
         }.onFailure { e ->
-            module.log(Log.WARN, TAG, "Unable to set preference layout", e)
+            logW(TAG, "Unable to set preference layout", e)
         }
     }
 
@@ -225,7 +225,7 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
             method.isAccessible = true
             method.invoke(manager, context)
         }.onFailure { e ->
-            module.log(Log.WARN, TAG, "Unable to call host PreferenceScreen factory", e)
+            logW(TAG, "Unable to call host PreferenceScreen factory", e)
         }.getOrNull()
     }
 
@@ -259,7 +259,7 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
             method.invoke(this, screen)
             true
         }.onFailure { e ->
-            module.log(Log.WARN, TAG, "Unable to switch host PreferenceScreen", e)
+            logW(TAG, "Unable to switch host PreferenceScreen", e)
         }.getOrDefault(false)
     }
 
@@ -279,7 +279,7 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
                 method.invoke(this, key)
                 return
             }.onFailure { e ->
-                module.log(Log.WARN, TAG, "Unable to call preference key setter", e)
+                logW(TAG, "Unable to call preference key setter", e)
             }
         }
 
@@ -292,7 +292,7 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
                 method.invoke(this, title)
                 return
             }.onFailure { e ->
-                module.log(Log.WARN, TAG, "Unable to call preference title setter", e)
+                logW(TAG, "Unable to call preference title setter", e)
             }
         }
 
@@ -305,7 +305,7 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
                 method.invoke(this, summary)
                 return
             }.onFailure { e ->
-                module.log(Log.WARN, TAG, "Unable to call preference summary setter", e)
+                logW(TAG, "Unable to call preference summary setter", e)
             }
         }
 
@@ -451,7 +451,7 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
                 setter.invoke(this, checked)
                 return
             }.onFailure { e ->
-                module.log(Log.WARN, TAG, "Unable to call switch checked setter", e)
+                logW(TAG, "Unable to call switch checked setter", e)
             }
         }
 
@@ -515,7 +515,7 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
             runCatching {
                 method.invoke(this, entry)
             }.onFailure { e ->
-                module.log(Log.WARN, TAG, "Unable to call preference add method", e)
+                logW(TAG, "Unable to call preference add method", e)
             }
             if (entry in preferenceChildren(preferenceClass).orEmpty()) {
                 return true

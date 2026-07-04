@@ -3,7 +3,6 @@ package icu.nullptr.polyglot.youtube
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
-import android.util.Log
 import android.util.SparseArray
 import android.view.View
 import icu.nullptr.polyglot.captions.BilingualFormatter
@@ -13,6 +12,10 @@ import icu.nullptr.polyglot.captions.CaptionSession
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.translate.TranslationManager
 import icu.nullptr.polyglot.util.hook
+import icu.nullptr.polyglot.util.logD
+import icu.nullptr.polyglot.util.logI
+import icu.nullptr.polyglot.util.logV
+import icu.nullptr.polyglot.util.logW
 import icu.nullptr.polyglot.util.toMethod
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.result.ClassData
@@ -53,7 +56,7 @@ object CaptionHook : BaseHook {
             installed++
         }
 
-        module.log(Log.INFO, name, "Installed $installed caption hook(s)")
+        logI(name, "Installed $installed caption hook(s)")
         return installed
     }
 
@@ -65,7 +68,7 @@ object CaptionHook : BaseHook {
     private fun installTimelineBuildHook(dexkit: DexKitBridge): Boolean {
         val method = dexkit.findCaptionTimelineBuildMethod()
             ?.toMethod() ?: run {
-            module.log(Log.WARN, name, "Caption timeline builder not found")
+            logW(name, "Caption timeline builder not found")
             return false
         }
 
@@ -79,7 +82,7 @@ object CaptionHook : BaseHook {
             result
         }
 
-        module.log(Log.INFO, name, "Hooked caption timeline builder: ${method.shortName()}")
+        logD(name, "Hooked caption timeline builder: ${method.shortName()}")
         return true
     }
 
@@ -88,7 +91,7 @@ object CaptionHook : BaseHook {
             .map { it.toMethod() }
             .filter { method ->
                 View::class.java.isAssignableFrom(method.declaringClass) &&
-                    method.declaringClass.hasInstanceFieldAssignableTo(Editable::class.java)
+                        method.declaringClass.hasInstanceFieldAssignableTo(Editable::class.java)
             }
             .distinctBy { it.stableId() }
 
@@ -115,7 +118,7 @@ object CaptionHook : BaseHook {
 
                 if (session.observeRenderedText(original)) {
                     val length = normalizedOriginal.length
-                    module.log(Log.DEBUG, name, "Observed rendered caption text, length=$length")
+                    logV(name, "Observed rendered caption text, length=$length")
                 }
 
                 session.translatedCueContaining(normalizedOriginal)?.let { translation ->
@@ -135,19 +138,19 @@ object CaptionHook : BaseHook {
                 }
             }
 
-            module.log(Log.INFO, name, "Hooked caption renderer: ${method.shortName()}")
+            logD(name, "Hooked caption renderer: ${method.shortName()}")
             installed++
         }
 
         if (installed == 0) {
-            module.log(Log.WARN, name, "Caption renderer not found")
+            logW(name, "Caption renderer not found")
         }
         return installed > 0
     }
 
     private fun installCaptionLanguageHooks(dexkit: DexKitBridge): Boolean {
         val trackClassName = dexkit.findCaptionTrackClassName() ?: run {
-            module.log(Log.WARN, name, "Caption track class not found")
+            logW(name, "Caption track class not found")
             return false
         }
 
@@ -156,7 +159,7 @@ object CaptionHook : BaseHook {
             .distinctBy { it.stableId() }
 
         if (methods.isEmpty()) {
-            module.log(Log.WARN, name, "Caption language methods not found")
+            logW(name, "Caption language methods not found")
             return false
         }
 
@@ -168,7 +171,7 @@ object CaptionHook : BaseHook {
             }
         }
 
-        module.log(Log.INFO, name, "Hooked caption language trackers: ${methods.size}")
+        logD(name, "Hooked caption language trackers: ${methods.size}")
         return true
     }
 
@@ -177,7 +180,7 @@ object CaptionHook : BaseHook {
             .map { it.toMethod() }
             .filter { method ->
                 View::class.java.isAssignableFrom(method.declaringClass) &&
-                    method.declaringClass.hasInstanceFieldAssignableTo(SparseArray::class.java)
+                        method.declaringClass.hasInstanceFieldAssignableTo(SparseArray::class.java)
             }
             .distinctBy { it.stableId() }
 
@@ -192,12 +195,12 @@ object CaptionHook : BaseHook {
                 chain.proceed()
             }
 
-            module.log(Log.INFO, name, "Hooked caption overlay update: ${method.shortName()}")
+            logD(name, "Hooked caption overlay update: ${method.shortName()}")
             installed++
         }
 
         if (installed == 0) {
-            module.log(Log.WARN, name, "Caption overlay update methods not found")
+            logW(name, "Caption overlay update methods not found")
         }
         return installed > 0
     }
@@ -316,7 +319,7 @@ object CaptionHook : BaseHook {
 
         val total = session.observedCueCount()
         if (total <= 5 || total % 25 == 0) {
-            module.log(Log.DEBUG, name, "Observed $newCueCount new caption cue(s) from $source, total=$total")
+            logV(name, "Observed $newCueCount new caption cue(s) from $source, total=$total")
         }
     }
 
@@ -336,11 +339,7 @@ object CaptionHook : BaseHook {
             sourceLanguage = sourceLanguage,
         ) { original, translated ->
             session.putTranslation(original, translated)
-            module.log(
-                Log.DEBUG,
-                name,
-                "Translated caption from $source, sourceLanguage=$sourceLanguage, length=${original.length}",
-            )
+            logV(name, "Translated caption from $source, sourceLanguage=$sourceLanguage, length=${original.length}")
             refreshVisibleRenderers(original, source)
         }
     }
@@ -378,7 +377,7 @@ object CaptionHook : BaseHook {
         if (normalizedCue.isEmpty() || normalizedFragment.isEmpty()) return renderedFragment
 
         val shouldDisplayBlock = normalizedCue == normalizedFragment ||
-            normalizedCue.endsWith(normalizedFragment)
+                normalizedCue.endsWith(normalizedFragment)
         return if (shouldDisplayBlock) {
             BilingualFormatter.format(normalizedCue, translated)
         } else {
@@ -435,10 +434,10 @@ object CaptionHook : BaseHook {
             method.invoke(renderer, text)
         }.onSuccess {
             if (text.isNotEmpty()) {
-                module.log(Log.DEBUG, name, "Refreshed visible caption from $source, length=$originalLength")
+                logV(name, "Refreshed visible caption from $source, length=$originalLength")
             }
         }.onFailure { e ->
-            module.log(Log.WARN, name, "Unable to refresh visible caption", e)
+            logW(name, "Unable to refresh visible caption", e)
         }.also {
             applyingTranslatedText.set(false)
         }
@@ -462,9 +461,9 @@ object CaptionHook : BaseHook {
         val builderClass = addLineMethod?.declaredClass ?: return null
         val candidates = builderClass.methods.filter { method ->
             method.isMethod &&
-                method.paramCount == 0 &&
-                method.returnTypeName != "void" &&
-                method.returnType?.hasAtLeastListFields(count = 3) == true
+                    method.paramCount == 0 &&
+                    method.returnTypeName != "void" &&
+                    method.returnType?.hasAtLeastListFields(count = 3) == true
         }
 
         return candidates.singleOrNull() ?: candidates.firstOrNull()
@@ -510,9 +509,7 @@ object CaptionHook : BaseHook {
                 returnType("boolean")
                 usingEqStrings(AUTO_TRANSLATE_CAPTIONS_OPTION)
             }
-        }
-            .filter { method -> method.isMethod && method.paramCount == 0 }
-            .firstOrNull()
+        }.singleOrNull { method -> method.isMethod && method.paramCount == 0 }
             ?.toMethod()
             ?.declaringClass
             ?.name
@@ -526,7 +523,7 @@ object CaptionHook : BaseHook {
             }
         }.filter { method ->
             method.isMethod &&
-                !Modifier.isAbstract(method.modifiers)
+                    !Modifier.isAbstract(method.modifiers)
         }
 
     private const val NON_DECREASING_SUBTITLE_TIME_ERROR =

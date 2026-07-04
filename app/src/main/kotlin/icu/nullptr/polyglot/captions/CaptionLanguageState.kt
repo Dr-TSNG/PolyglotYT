@@ -1,7 +1,6 @@
 package icu.nullptr.polyglot.captions
 
-import android.util.Log
-import icu.nullptr.polyglot.module
+import icu.nullptr.polyglot.util.logD
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier
 import java.util.Locale
@@ -29,11 +28,7 @@ object CaptionLanguageState {
         if (previous == language) return false
 
         sourceLanguage = language
-        module.log(
-            Log.INFO,
-            TAG,
-            "Detected YouTube caption language: $previous -> $language from $source",
-        )
+        logD(TAG, "Detected YouTube caption language: $previous -> $language from $source")
         return true
     }
 

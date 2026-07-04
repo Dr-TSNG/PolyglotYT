@@ -1,11 +1,11 @@
 package icu.nullptr.polyglot.translate
 
-import android.util.Log
 import icu.nullptr.polyglot.captions.CaptionCue
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.translate.providers.GoogleTranslator
 import icu.nullptr.polyglot.translate.providers.MicrosoftTranslator
 import icu.nullptr.polyglot.translate.providers.OpenAICompatibleTranslator
+import icu.nullptr.polyglot.util.logW
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -44,7 +44,7 @@ object TranslationManager {
                         onTranslated(original, translated)
                     }
                 } catch (e: Throwable) {
-                    module.log(Log.WARN, TAG, "Caption translation failed, length=${original.length}", e)
+                    logW(TAG, "Caption translation failed, length=${original.length}", e)
                 } finally {
                     inFlight.remove(requestKey)
                 }
