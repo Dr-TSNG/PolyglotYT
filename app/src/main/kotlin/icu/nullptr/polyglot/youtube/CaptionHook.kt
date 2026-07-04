@@ -13,7 +13,6 @@ import icu.nullptr.polyglot.captions.CaptionSession
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.translate.TranslationManager
 import icu.nullptr.polyglot.util.hook
-import icu.nullptr.polyglot.util.toExecutable
 import icu.nullptr.polyglot.util.toMethod
 import org.luckypray.dexkit.DexKitBridge
 import org.luckypray.dexkit.result.ClassData
@@ -152,11 +151,8 @@ object CaptionHook : BaseHook {
             return false
         }
 
-        val methods = (
-            dexkit.findCaptionTrackReturnMethods(trackClassName) +
-                dexkit.findCaptionTrackArgumentMethods(trackClassName)
-            )
-            .map { it.toExecutable() }
+        val methods = dexkit.findCaptionTrackStateMethods(trackClassName)
+            .map { it.toMethod() }
             .distinctBy { it.stableId() }
 
         if (methods.isEmpty()) {
@@ -166,11 +162,8 @@ object CaptionHook : BaseHook {
 
         for (method in methods) {
             hook(method) { chain ->
-                observeCaptionTrackArguments(chain, method, trackClassName)
+                observeCaptionTrack(chain.getArg(0), "${method.shortName()} arg0")
                 val result = chain.proceed()
-                if (method is Method && method.returnType.name == trackClassName) {
-                    observeCaptionTrack(result, "${method.shortName()} result")
-                }
                 result
             }
         }
@@ -352,18 +345,6 @@ object CaptionHook : BaseHook {
         }
     }
 
-    private fun observeCaptionTrackArguments(
-        chain: io.github.libxposed.api.XposedInterface.Chain,
-        method: Executable,
-        trackClassName: String,
-    ) {
-        for (index in method.parameterTypes.indices) {
-            if (method.parameterTypes[index].name == trackClassName) {
-                observeCaptionTrack(chain.getArg(index), "${method.shortName()} arg$index")
-            }
-        }
-    }
-
     private fun observeCaptionTrack(track: Any?, source: String) {
         if (!CaptionLanguageState.updateFromCaptionTrack(track, source)) return
 
@@ -536,31 +517,22 @@ object CaptionHook : BaseHook {
             ?.declaringClass
             ?.name
 
-    private fun DexKitBridge.findCaptionTrackReturnMethods(trackClassName: String): List<MethodData> =
-        findMethod {
-            matcher {
-                returnType(trackClassName)
-            }
-        }.filter { method ->
-            method.isMethod &&
-                !Modifier.isAbstract(method.modifiers) &&
-                (method.paramCount == 0 || method.paramTypeNames == listOf("java.lang.String"))
-        }
-
-    private fun DexKitBridge.findCaptionTrackArgumentMethods(trackClassName: String): List<MethodData> =
+    private fun DexKitBridge.findCaptionTrackStateMethods(trackClassName: String): List<MethodData> =
         findMethod {
             matcher {
                 returnType("void")
                 paramTypes(trackClassName)
+                usingEqStrings(MENU_ITEM_CAPTIONS_KEY)
             }
         }.filter { method ->
-            (method.isMethod || method.isConstructor) &&
+            method.isMethod &&
                 !Modifier.isAbstract(method.modifiers)
         }
 
     private const val NON_DECREASING_SUBTITLE_TIME_ERROR =
         "subtitles are not given in non-decreasing start time order"
     private const val AUTO_TRANSLATE_CAPTIONS_OPTION = "AUTO_TRANSLATE_CAPTIONS_OPTION"
+    private const val MENU_ITEM_CAPTIONS_KEY = "menu_item_captions"
     private const val EDITABLE_TYPE = "android.text.Editable"
     private const val SPARSE_ARRAY_TYPE = "android.util.SparseArray"
     private const val RENDERER_STATE_TTL_MS = 2_000L

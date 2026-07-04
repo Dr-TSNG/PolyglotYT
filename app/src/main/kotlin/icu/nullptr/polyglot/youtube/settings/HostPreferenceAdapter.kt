@@ -1,7 +1,9 @@
 package icu.nullptr.polyglot.youtube.settings
 
 import android.content.Context
+import android.graphics.drawable.Drawable
 import android.util.Log
+import android.util.TypedValue
 import icu.nullptr.polyglot.module
 import java.lang.reflect.Field
 import java.lang.reflect.Method
@@ -11,6 +13,8 @@ import java.util.WeakHashMap
 
 internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
     private val preferenceOrderFields = WeakHashMap<Class<*>, Field>()
+    private val preferenceLayoutFields = WeakHashMap<Class<*>, Field>()
+    private val preferenceIconSetters = WeakHashMap<Class<*>, Method>()
     private val switchCheckedSetters = WeakHashMap<Class<*>, Method>()
 
     fun classesFor(classLoader: ClassLoader): HostPreferenceClasses =
@@ -27,11 +31,17 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
         key: String,
         title: CharSequence,
         summary: CharSequence?,
+        icon: SettingsIcon? = null,
+        useIconLayout: Boolean = false,
     ): Any =
         classes.preference.getConstructor(Context::class.java).newInstance(context).apply {
             setPreferenceKey(key)
             setPreferenceTitle(title)
             if (summary != null) setPreferenceSummary(summary)
+            setPreferenceIcon(context, classes.preference, icon)
+            if (useIconLayout) {
+                setPreferenceLayout(context, classes.preference, PREFERENCE_WITH_ICON_LAYOUT)
+            }
         }
 
     fun createSwitchPreference(
@@ -39,6 +49,7 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
         classes: HostPreferenceClasses,
         key: String,
         title: CharSequence,
+        icon: SettingsIcon?,
         summary: CharSequence,
         checked: Boolean,
         onChanged: (Boolean) -> Unit,
@@ -46,6 +57,7 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
         classes.switchPreference.getConstructor(Context::class.java).newInstance(context).apply {
             setPreferenceKey(key)
             setPreferenceTitle(title)
+            setPreferenceIcon(context, classes.preference, icon)
             setPreferenceSummary(summary)
             setSwitchChecked(context, classes.switchPreference, checked)
             setPreferenceChangeListener(classes.preference) { value ->
@@ -95,6 +107,90 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
 
     fun setSummary(preference: Any, summary: CharSequence) {
         preference.setPreferenceSummary(summary)
+    }
+
+    private fun Any.setPreferenceIcon(
+        context: Context,
+        preferenceClass: Class<*>,
+        icon: SettingsIcon?,
+    ) {
+        if (icon == null) return
+
+        val drawable = icon.loadDrawable(context) ?: run {
+            module.log(Log.WARN, TAG, "Unable to resolve settings icon for ${icon.name}")
+            return
+        }
+        val setter = preferenceIconSetters[preferenceClass] ?: preferenceClass.findIconSetter()
+            ?.also { preferenceIconSetters[preferenceClass] = it }
+        if (setter == null) {
+            module.log(Log.WARN, TAG, "Unable to find preference icon setter")
+            return
+        }
+
+        runCatching {
+            setter.invoke(this, drawable)
+        }.onFailure { e ->
+            module.log(Log.WARN, TAG, "Unable to call preference icon setter", e)
+        }
+    }
+
+    private fun SettingsIcon.loadDrawable(context: Context): Drawable? =
+        runCatching {
+            module.res.getDrawable(drawableRes, context.theme)
+                ?.mutate()
+                ?.apply { context.preferenceIconTint()?.let(::setTint) }
+        }.getOrNull()
+
+    private fun Context.preferenceIconTint(): Int? =
+        resolveThemeColor(android.R.attr.colorControlNormal)
+            ?: resolveThemeColor(android.R.attr.textColorSecondary)
+            ?: resolveThemeColor(android.R.attr.textColorPrimary)
+
+    private fun Context.resolveThemeColor(attribute: Int): Int? {
+        val value = TypedValue()
+        if (!theme.resolveAttribute(attribute, value, true)) return null
+
+        if (value.type in TypedValue.TYPE_FIRST_COLOR_INT..TypedValue.TYPE_LAST_COLOR_INT) {
+            return value.data
+        }
+
+        return runCatching {
+            if (value.resourceId != 0) resources.getColorStateList(value.resourceId, theme).defaultColor else null
+        }.getOrNull()
+    }
+
+    private fun Class<*>.findIconSetter(): Method? =
+        methodsInHierarchy()
+            .firstOrNull { method ->
+                !Modifier.isStatic(method.modifiers) &&
+                    method.returnType == Void.TYPE &&
+                    method.parameterTypes.contentEquals(arrayOf(Drawable::class.java))
+            }?.apply { isAccessible = true }
+
+    private fun Any.setPreferenceLayout(
+        context: Context,
+        preferenceClass: Class<*>,
+        layoutName: String,
+    ) {
+        val layoutId = context.resourceId(layoutName, "layout")
+        if (layoutId == 0) {
+            module.log(Log.WARN, TAG, "Unable to resolve preference layout $layoutName")
+            return
+        }
+
+        val layoutField = preferenceLayoutFields[preferenceClass] ?: preferenceClass.findLayoutResourceField(context)
+            ?.also { preferenceLayoutFields[preferenceClass] = it }
+        if (layoutField == null) {
+            module.log(Log.WARN, TAG, "Unable to find preference layout field")
+            return
+        }
+
+        runCatching {
+            layoutField.isAccessible = true
+            layoutField.setInt(this, layoutId)
+        }.onFailure { e ->
+            module.log(Log.WARN, TAG, "Unable to set preference layout", e)
+        }
     }
 
     private fun Any.readPreferenceScreenOrNull(): Any? {
@@ -320,6 +416,33 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
         return null
     }
 
+    private fun Class<*>.findLayoutResourceField(context: Context): Field? {
+        val defaultLayoutId = context.resourceId(PREFERENCE_DEFAULT_LAYOUT, "layout")
+        val constructor = getConstructor(Context::class.java)
+        val preference = constructor.newInstance(context)
+        val orderField = findOrderField(context)
+        val candidates = fieldsInHierarchy()
+            .filter { field -> !Modifier.isStatic(field.modifiers) && field.type == Integer.TYPE }
+            .toList()
+
+        candidates.firstOrNull { field ->
+            defaultLayoutId != 0 && runCatching {
+                field.isAccessible = true
+                field.getInt(preference) == defaultLayoutId
+            }.getOrDefault(false)
+        }?.let { return it }
+
+        return candidates
+            .filter { field -> orderField?.name != field.name }
+            .firstOrNull { field ->
+                runCatching {
+                    field.isAccessible = true
+                    val value = field.getInt(preference)
+                    value != 0 && value != Int.MAX_VALUE
+                }.getOrDefault(false)
+            }
+    }
+
     private fun Any.setSwitchChecked(
         context: Context,
         switchPreferenceClass: Class<*>,
@@ -447,6 +570,8 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
 
     private companion object {
         const val TAG = "HostPreferenceAdapter"
+        const val PREFERENCE_DEFAULT_LAYOUT = "preference"
+        const val PREFERENCE_WITH_ICON_LAYOUT = "preference_with_icon"
     }
 }
 

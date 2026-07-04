@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_description">YouTube 沉浸式双语字幕翻译插件</string>
+
+    <string name="enabled">已启用</string>
+    <string name="disabled">已关闭</string>
+    <string name="selected">已选择</string>
+    <string name="not_set">未设置</string>
+    <plurals name="hook_failed">
+        <item quantity="other">PolyglotYT: %d 个 hook 安装失败。请检查日志以获取详细信息。</item>
+    </plurals>
+
+    <string name="enable_module">启用模块</string>
+    <string name="translation_service">翻译服务</string>
+    <string name="target_language">目标语言</string>
+    <string name="subtitle_mode">字幕模式</string>
+    <string name="subtitle_mode_original_first">原文在上，翻译在下</string>
+    <string name="subtitle_mode_translation_first">翻译在上，原文在下</string>
+    <string name="subtitle_mode_translation_only">仅显示翻译</string>
+    <string name="openai_api_key">API Key</string>
+    <string name="openai_endpoint">API 端点</string>
+    <string name="openai_model">模型</string>
+    <string name="test_connectivity">测试连通性</string>
+    <string name="test_connectivity_summary">通过当前翻译服务发送一次轻量请求</string>
+    <string name="connectivity_test_running">正在测试连通性…</string>
+    <string name="connectivity_test_success_title">连接成功</string>
+    <string name="connectivity_test_success_message">服务返回：%1$s</string>
+    <string name="connectivity_test_failed_title">连接失败</string>
+
+    <string name="subtitle_quick_switch_title">沉浸式翻译</string>
+</resources>

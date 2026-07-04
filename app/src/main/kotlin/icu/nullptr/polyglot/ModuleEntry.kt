@@ -14,6 +14,7 @@ import icu.nullptr.polyglot.util.findClass
 import icu.nullptr.polyglot.util.findConstructorExact
 import icu.nullptr.polyglot.util.findMethodExact
 import icu.nullptr.polyglot.youtube.CaptionHook
+import icu.nullptr.polyglot.youtube.PlayerControlsHook
 import icu.nullptr.polyglot.youtube.SettingsHook
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
@@ -78,6 +79,7 @@ class ModuleEntry : XposedModule() {
                 val hooks = listOf(
                     SettingsHook,
                     CaptionHook,
+                    PlayerControlsHook,
                 )
 
                 var successful = 0

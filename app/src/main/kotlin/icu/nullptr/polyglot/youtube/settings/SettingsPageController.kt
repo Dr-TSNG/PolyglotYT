@@ -33,7 +33,9 @@ internal class SettingsPageController(
                 classes = classes,
                 key = ENTRY_KEY,
                 title = ENTRY_TITLE,
-                summary = PolyglotSettingsTree.entrySummary(),
+                summary = null,
+                icon = SettingsIcon.Entry,
+                useIconLayout = true,
             )
             adapter.prepareOrderForTop(entry, context, classes.preference)
 
@@ -41,7 +43,6 @@ internal class SettingsPageController(
             val page = NativeSettingsPage(
                 fragment = fragment,
                 rootScreen = rootScreen,
-                entryPreference = entry,
                 context = context,
                 classes = classes,
                 adapter = adapter,

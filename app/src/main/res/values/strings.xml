@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">PolyglotYT</string>
     <string name="app_description">Immersive bilingual subtitle translation for YouTube.</string>
 
     <string name="enabled">Enabled</string>
     <string name="disabled">Disabled</string>
     <string name="selected">Selected</string>
+    <string name="not_set">Not set</string>
     <plurals name="hook_failed">
         <item quantity="one">PolyglotYT: %d hook failed to install. Check logs for details.</item>
         <item quantity="other">PolyglotYT: %d hooks failed to install. Check logs for details.</item>
@@ -18,4 +18,15 @@
     <string name="subtitle_mode_original_first">Original above translation</string>
     <string name="subtitle_mode_translation_first">Translation above original</string>
     <string name="subtitle_mode_translation_only">Translation only</string>
+    <string name="openai_api_key">API Key</string>
+    <string name="openai_endpoint">API Endpoint</string>
+    <string name="openai_model">Model</string>
+    <string name="test_connectivity">Test Connectivity</string>
+    <string name="test_connectivity_summary">Send a lightweight request through the selected translation service</string>
+    <string name="connectivity_test_running">Testing connectivity…</string>
+    <string name="connectivity_test_success_title">Connection successful</string>
+    <string name="connectivity_test_success_message">The service returned: %1$s</string>
+    <string name="connectivity_test_failed_title">Connection failed</string>
+
+    <string name="subtitle_quick_switch_title">Immersive Translation</string>
 </resources>

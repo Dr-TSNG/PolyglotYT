@@ -1,14 +1,15 @@
 package icu.nullptr.polyglot.settings
 
 import icu.nullptr.polyglot.R
-import icu.nullptr.polyglot.core.ConfigManager
 import icu.nullptr.polyglot.module
 
 object SettingsOptions {
+    const val PROVIDER_OPENAI = "openai"
+
     val providers = listOf(
         SettingsOption("microsoft", "Microsoft Translator"),
         SettingsOption("google", "Google Translate"),
-        SettingsOption("openai", "OpenAI compatible"),
+        SettingsOption(PROVIDER_OPENAI, "OpenAI compatible"),
     )
 
     val targetLanguages = listOf(
@@ -29,11 +30,6 @@ object SettingsOptions {
         SettingsOption("translation_only", module.res.getString(R.string.subtitle_mode_translation_only))
     )
 
-    fun entrySummary(config: ConfigManager = module.config): String {
-        if (!config.enabled) return module.res.getString(R.string.disabled)
-        return "${providerLabel(config.provider)} -> ${languageLabel(config.targetLanguage)}"
-    }
-
     fun enabledSummary(enabled: Boolean): String =
         if (enabled) module.res.getString(R.string.enabled)
         else module.res.getString(R.string.disabled)
@@ -46,6 +42,12 @@ object SettingsOptions {
 
     fun subtitleModeLabel(value: String): String =
         subtitleMode.firstOrNull { it.value == value }?.label ?: value
+
+    fun textOrNotSet(value: String): String =
+        value.ifBlank { module.res.getString(R.string.not_set) }
+
+    fun secretSummary(value: String): String =
+        if (value.isBlank()) module.res.getString(R.string.not_set) else "********"
 }
 
 data class SettingsOption(

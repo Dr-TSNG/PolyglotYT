@@ -19,6 +19,9 @@ internal fun Context.activityOrNull(): Activity? {
 internal fun Context.resourceEntryName(resourceId: Int): String? =
     runCatching { resources.getResourceEntryName(resourceId) }.getOrNull()
 
+internal fun Context.resourceId(name: String, type: String): Int =
+    resources.getIdentifier(name, type, packageName)
+
 internal fun Class<*>.fieldsInHierarchy(): Sequence<Field> = sequence {
     var clazz: Class<*>? = this@fieldsInHierarchy
     while (clazz != null) {

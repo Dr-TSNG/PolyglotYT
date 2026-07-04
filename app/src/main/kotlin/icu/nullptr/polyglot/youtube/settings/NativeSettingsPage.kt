@@ -1,17 +1,29 @@
 package icu.nullptr.polyglot.youtube.settings
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.Toast
 import android.window.OnBackInvokedCallback
+import icu.nullptr.polyglot.R
 import icu.nullptr.polyglot.module
+import icu.nullptr.polyglot.translate.ConnectivityTestResult
+import icu.nullptr.polyglot.translate.ConnectivityTester
 import java.util.ArrayDeque
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.roundToInt
 
 internal class NativeSettingsPage(
     private val fragment: Any,
     private val rootScreen: Any,
-    private val entryPreference: Any,
     private val context: Context,
     private val classes: HostPreferenceClasses,
     private val adapter: HostPreferenceAdapter,
@@ -20,6 +32,8 @@ internal class NativeSettingsPage(
 ) {
     private val toolbarTitle = HostToolbarTitle(activity)
     private val backStack = ArrayDeque<ScreenState>()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val connectivityTestRunning = AtomicBoolean(false)
 
     private var currentScreen: ScreenState? = null
     private var systemBackCallback: OnBackInvokedCallback? = null
@@ -49,7 +63,6 @@ internal class NativeSettingsPage(
     }
 
     fun refreshSummaries() {
-        adapter.setSummary(entryPreference, PolyglotSettingsTree.entrySummary())
         val screen = currentScreen ?: return
         for (row in screen.rows) {
             val summary = row.node.summary() ?: continue
@@ -97,6 +110,7 @@ internal class NativeSettingsPage(
 
         val rows = mutableListOf<RenderedRow>()
         for (child in node.children) {
+            if (!child.visible()) continue
             val preference = renderPreference(child) ?: continue
             if (adapter.addPreference(screen, preference, classes.preference)) {
                 rows += RenderedRow(node = child, preference = preference)
@@ -113,6 +127,7 @@ internal class NativeSettingsPage(
                 classes = classes,
                 key = node.key,
                 title = node.title,
+                icon = node.icon,
                 summary = node.summary(),
                 checked = node.checked(),
                 onChanged = { checked ->
@@ -125,48 +140,175 @@ internal class NativeSettingsPage(
                 classes = classes,
                 key = node.key,
                 title = node.title,
+                icon = node.icon,
                 summary = node.summary(),
             ).also { preference ->
                 controller.registerClickHandler(preference) {
-                    openSelectionScreen(node)
+                    openSelectionDialog(node)
                     true
                 }
             }
-            is OptionSettingsNode -> adapter.createPreference(
+            is TextSettingsNode -> adapter.createPreference(
                 context = context,
                 classes = classes,
                 key = node.key,
                 title = node.title,
+                icon = node.icon,
                 summary = node.summary(),
             ).also { preference ->
                 controller.registerClickHandler(preference) {
-                    node.onSelected()
-                    navigateBack()
-                    refreshSummaries()
+                    openTextInputDialog(node)
+                    true
+                }
+            }
+            is ActionSettingsNode -> adapter.createPreference(
+                context = context,
+                classes = classes,
+                key = node.key,
+                title = node.title,
+                icon = node.icon,
+                summary = node.summary(),
+            ).also { preference ->
+                controller.registerClickHandler(preference) {
+                    handleSettingsAction(node.action)
                     true
                 }
             }
             is SettingsScreenNode -> null
         }
 
-    private fun openSelectionScreen(node: SelectionSettingsNode) {
-        val selectionScreen = SettingsScreenNode(
-            key = "${node.key}.screen",
-            title = node.title,
-            children = node.options.map { option ->
-                OptionSettingsNode(
-                    key = "${node.key}.${option.value}",
-                    title = option.label,
-                    value = option.value,
-                    selected = { node.selectedValue() == option.value },
-                    onSelected = { node.onSelected(option.value) },
-                )
-            },
-        )
+    private fun openSelectionDialog(node: SelectionSettingsNode) {
+        val labels = node.options.map { it.label as CharSequence }.toTypedArray()
+        val checkedIndex = node.options.indexOfFirst { it.value == node.selectedValue() }
 
-        val screen = renderScreen(selectionScreen) ?: return
-        navigateTo(screen, pushCurrent = true)
+        AlertDialog.Builder(dialogContext())
+            .setTitle(node.title)
+            .setSingleChoiceItems(labels, checkedIndex) { dialog, which ->
+                val option = node.options.getOrNull(which) ?: return@setSingleChoiceItems
+                if (option.value != node.selectedValue()) {
+                    node.onSelected(option.value)
+                    rebuildRootScreen()
+                } else {
+                    refreshSummaries()
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
+
+    private fun openTextInputDialog(node: TextSettingsNode) {
+        val dialogContext = dialogContext()
+        val input = EditText(dialogContext).apply {
+            inputType = node.inputType
+            setSingleLine(true)
+            setText(node.value())
+            setSelection(text?.length ?: 0)
+        }
+        val container = FrameLayout(dialogContext).apply {
+            val horizontalPadding = dialogContext.dp(24)
+            val topPadding = dialogContext.dp(8)
+            val bottomPadding = dialogContext.dp(4)
+            setPadding(horizontalPadding, topPadding, horizontalPadding, bottomPadding)
+            addView(
+                input,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+
+        val dialog = AlertDialog.Builder(dialogContext)
+            .setTitle(node.title)
+            .setView(container)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                node.onSubmitted(input.text?.toString().orEmpty())
+                rebuildRootScreen()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+
+        input.requestFocus()
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+    }
+
+    private fun handleSettingsAction(action: SettingsAction) {
+        when (action) {
+            SettingsAction.TestConnectivity -> testConnectivity()
+        }
+    }
+
+    private fun testConnectivity() {
+        if (!connectivityTestRunning.compareAndSet(false, true)) {
+            Toast.makeText(
+                dialogContext(),
+                module.res.getString(R.string.connectivity_test_running),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+
+        Toast.makeText(
+            dialogContext(),
+            module.res.getString(R.string.connectivity_test_running),
+            Toast.LENGTH_SHORT,
+        ).show()
+
+        Thread(
+            {
+                val result = ConnectivityTester.testCurrentProvider()
+                mainHandler.post {
+                    connectivityTestRunning.set(false)
+                    showConnectivityTestResult(result)
+                }
+            },
+            CONNECTIVITY_TEST_THREAD_NAME,
+        ).apply { isDaemon = true }.start()
+    }
+
+    private fun showConnectivityTestResult(result: ConnectivityTestResult) {
+        val (title, message) = when (result) {
+            is ConnectivityTestResult.Success -> {
+                val response = result.response.compactForDialog().ifBlank { "OK" }
+                module.res.getString(R.string.connectivity_test_success_title) to
+                    module.res.getString(R.string.connectivity_test_success_message, response)
+            }
+            is ConnectivityTestResult.Failure ->
+                module.res.getString(R.string.connectivity_test_failed_title) to result.message.compactForDialog()
+        }
+
+        AlertDialog.Builder(dialogContext())
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun String.compactForDialog(): String =
+        replace(Regex("\\s+"), " ")
+            .trim()
+            .let { text ->
+                if (text.length <= MAX_CONNECTIVITY_RESULT_LENGTH) text
+                else text.take(MAX_CONNECTIVITY_RESULT_LENGTH) + "..."
+            }
+
+    private fun rebuildRootScreen() {
+        val screen = renderScreen(PolyglotSettingsTree.root()) ?: return
+        currentScreen = screen
+        backStack.clear()
+
+        if (adapter.showPreferenceScreen(fragment, screen.screen)) {
+            toolbarTitle.show(screen.node.title)
+            refreshSummaries()
+        }
+    }
+
+    private fun dialogContext(): Context =
+        activity ?: context
+
+    private fun Context.dp(value: Int): Int =
+        (value * resources.displayMetrics.density).roundToInt()
 
     private fun registerSystemBackCallback() {
         val hostActivity = activity
@@ -219,5 +361,7 @@ internal class NativeSettingsPage(
 
     private companion object {
         const val TAG = "NativeSettingsPage"
+        const val CONNECTIVITY_TEST_THREAD_NAME = "PolyglotYT-ConnectivityTest"
+        const val MAX_CONNECTIVITY_RESULT_LENGTH = 1000
     }
 }

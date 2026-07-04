@@ -60,18 +60,15 @@ object TranslationManager {
         var attempt = 0
         var lastError: Throwable? = null
         val maxRetries = module.config.maxRetries.coerceAtLeast(0)
-        val normalizedSourceLanguage = normalizedSourceLanguage(sourceLanguage)
 
         while (attempt <= maxRetries) {
             runCatching {
-                val request = TranslationRequest(
-                    texts = listOf(text),
-                    sourceLanguage = normalizedSourceLanguage,
-                    targetLanguage = module.config.targetLanguage,
+                return translateOnce(
+                    text = text,
                     context = context,
+                    sourceLanguage = sourceLanguage,
                     timeoutMs = module.config.requestTimeoutMs.coerceAtLeast(MIN_TIMEOUT_MS),
                 )
-                return translator().translate(request).texts.firstOrNull().orEmpty()
             }.onFailure { error ->
                 lastError = error
                 if (attempt < maxRetries) {
@@ -82,6 +79,39 @@ object TranslationManager {
         }
 
         throw lastError ?: IllegalStateException("Translation cancelled")
+    }
+
+    fun translateForConnectivityTest(
+        text: String,
+        context: String,
+        sourceLanguage: String,
+        timeoutMs: Int,
+    ): String =
+        translateOnce(
+            text = CaptionCue.normalize(text),
+            context = context,
+            sourceLanguage = sourceLanguage,
+            timeoutMs = timeoutMs.coerceAtLeast(MIN_TIMEOUT_MS),
+        )
+
+    private fun translateOnce(
+        text: String,
+        context: String,
+        sourceLanguage: String,
+        timeoutMs: Int,
+    ): String {
+        if (text.isBlank()) {
+            return ""
+        }
+
+        val request = TranslationRequest(
+            texts = listOf(text),
+            sourceLanguage = normalizedSourceLanguage(sourceLanguage),
+            targetLanguage = module.config.targetLanguage,
+            context = context,
+            timeoutMs = timeoutMs,
+        )
+        return translator().translate(request).texts.firstOrNull().orEmpty()
     }
 
     private fun translator(): Translator =
