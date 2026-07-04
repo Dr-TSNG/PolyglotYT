@@ -23,8 +23,25 @@ internal class SettingsPageController(
         runCatching {
             val classLoader = rootScreen.javaClass.classLoader ?: module.hostClassLoader
             val classes = adapter.classesFor(classLoader)
+            val activity = context.activityOrNull()
+            activity?.let { detachActivePageForHostRoot(it, resourceEntryName) }
 
-            if (adapter.hasPreferenceWithKey(rootScreen, ENTRY_KEY, classes)) {
+            fun createPage(): NativeSettingsPage =
+                NativeSettingsPage(
+                    fragment = fragment,
+                    rootScreen = rootScreen,
+                    context = context,
+                    classes = classes,
+                    adapter = adapter,
+                    controller = this,
+                    activity = activity,
+                )
+
+            val existingEntry = adapter.findPreferenceWithKey(rootScreen, ENTRY_KEY, classes)
+            if (existingEntry != null) {
+                nativePages[existingEntry] = createPage()
+                activity?.let { installBackHookForActivity(it) }
+                module.log(Log.INFO, TAG, "Rebound native settings entry in $resourceEntryName")
                 return
             }
 
@@ -39,16 +56,7 @@ internal class SettingsPageController(
             )
             adapter.prepareOrderForTop(entry, context, classes.preference)
 
-            val activity = context.activityOrNull()
-            val page = NativeSettingsPage(
-                fragment = fragment,
-                rootScreen = rootScreen,
-                context = context,
-                classes = classes,
-                adapter = adapter,
-                controller = this,
-                activity = activity,
-            )
+            val page = createPage()
             activity?.let { installBackHookForActivity(it) }
 
             if (adapter.addPreference(rootScreen, entry, classes.preference)) {
@@ -60,6 +68,12 @@ internal class SettingsPageController(
         }.onFailure { e ->
             module.log(Log.WARN, TAG, "Unable to inject native settings entry into $resourceEntryName", e)
         }
+    }
+
+    private fun detachActivePageForHostRoot(activity: Activity, resourceEntryName: String) {
+        val page = activePagesByActivity[activity] ?: return
+        page.detachFromHostRoot()
+        module.log(Log.INFO, TAG, "Detached native settings page after host root reload in $resourceEntryName")
     }
 
     fun dispatchPreferenceClick(preference: Any): Boolean {

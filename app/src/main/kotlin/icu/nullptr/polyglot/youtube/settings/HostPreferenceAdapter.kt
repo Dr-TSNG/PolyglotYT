@@ -90,12 +90,16 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
     fun addPreference(group: Any, preference: Any, preferenceClass: Class<*>): Boolean =
         group.appendPreference(preference, preferenceClass)
 
-    fun hasPreferenceWithKey(
+    fun findPreferenceWithKey(
         group: Any,
         key: String,
         classes: HostPreferenceClasses,
-    ): Boolean =
-        group.hasPreferenceWithString(key, classes.preference, classes.preferenceGroup)
+    ): Any? =
+        group.findPreferenceByString(
+            key = key,
+            preferenceClass = classes.preference,
+            preferenceGroupClass = classes.preferenceGroup,
+        )
 
     fun prepareOrderForTop(preference: Any, context: Context, preferenceClass: Class<*>) {
         val orderField = preferenceOrderFields[preferenceClass] ?: preferenceClass.findOrderField(context)
@@ -138,13 +142,13 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
         runCatching {
             module.res.getDrawable(drawableRes, context.theme)
                 ?.mutate()
-                ?.apply { context.preferenceIconTint()?.let(::setTint) }
+                ?.apply { context.preferenceIconTint()?.withOpaqueAlpha()?.let(::setTint) }
         }.getOrNull()
 
     private fun Context.preferenceIconTint(): Int? =
-        resolveThemeColor(android.R.attr.colorControlNormal)
+        resolveThemeColor(android.R.attr.textColorPrimary)
+            ?: resolveThemeColor(android.R.attr.colorControlNormal)
             ?: resolveThemeColor(android.R.attr.textColorSecondary)
-            ?: resolveThemeColor(android.R.attr.textColorPrimary)
 
     private fun Context.resolveThemeColor(attribute: Int): Int? {
         val value = TypedValue()
@@ -158,6 +162,9 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
             if (value.resourceId != 0) resources.getColorStateList(value.resourceId, theme).defaultColor else null
         }.getOrNull()
     }
+
+    private fun Int.withOpaqueAlpha(): Int =
+        this or OPAQUE_ALPHA_MASK
 
     private fun Class<*>.findIconSetter(): Method? =
         methodsInHierarchy()
@@ -369,17 +376,6 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
         field.set(this, value)
     }
 
-    private fun Any.hasPreferenceWithString(
-        key: String,
-        preferenceClass: Class<*>,
-        preferenceGroupClass: Class<*>,
-    ): Boolean =
-        findPreferenceByString(
-            key = key,
-            preferenceClass = preferenceClass,
-            preferenceGroupClass = preferenceGroupClass,
-        ) != null
-
     private fun Any.findPreferenceByString(
         key: String,
         preferenceClass: Class<*>,
@@ -572,6 +568,7 @@ internal class HostPreferenceAdapter(private val methods: PreferenceMethods) {
         const val TAG = "HostPreferenceAdapter"
         const val PREFERENCE_DEFAULT_LAYOUT = "preference"
         const val PREFERENCE_WITH_ICON_LAYOUT = "preference_with_icon"
+        const val OPAQUE_ALPHA_MASK = -0x1000000
     }
 }
 

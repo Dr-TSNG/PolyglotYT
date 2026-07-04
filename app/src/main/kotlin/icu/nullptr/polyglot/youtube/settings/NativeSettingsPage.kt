@@ -30,7 +30,7 @@ internal class NativeSettingsPage(
     private val controller: SettingsPageController,
     val activity: Activity?,
 ) {
-    private val toolbarTitle = HostToolbarTitle(activity)
+    private val toolbarTitle = HostToolbarTitle(activity, context.hostSettingsTitle())
     private val backStack = ArrayDeque<ScreenState>()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val connectivityTestRunning = AtomicBoolean(false)
@@ -70,6 +70,18 @@ internal class NativeSettingsPage(
         }
     }
 
+    fun detachFromHostRoot() {
+        clearActiveState()
+        toolbarTitle.restore()
+    }
+
+    private fun clearActiveState() {
+        backStack.clear()
+        currentScreen = null
+        unregisterSystemBackCallback()
+        activity?.let { controller.deactivate(it) }
+    }
+
     private fun navigateTo(screen: ScreenState, pushCurrent: Boolean): Boolean {
         if (pushCurrent) {
             currentScreen?.let { backStack.addLast(it) }
@@ -89,14 +101,8 @@ internal class NativeSettingsPage(
 
     private fun returnToRoot(): Boolean {
         val shown = adapter.showPreferenceScreen(fragment, rootScreen)
-        if (shown) {
-            backStack.clear()
-            currentScreen = null
-            unregisterSystemBackCallback()
-            activity?.let { controller.deactivate(it) }
-            toolbarTitle.restore()
-        }
-        refreshSummaries()
+        clearActiveState()
+        toolbarTitle.restore()
         return shown
     }
 

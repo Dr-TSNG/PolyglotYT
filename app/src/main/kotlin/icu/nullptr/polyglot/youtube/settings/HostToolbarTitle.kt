@@ -1,18 +1,23 @@
 package icu.nullptr.polyglot.youtube.settings
 
 import android.app.Activity
+import android.content.Context
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 
 internal class HostToolbarTitle(
     private val activity: Activity?,
+    private val fallbackTitle: CharSequence?,
 ) {
     private var originalTitle: CharSequence? = null
 
     fun capture() {
         if (originalTitle != null || activity == null) return
-        originalTitle = activity.findToolbarTitleText() ?: activity.title
+        originalTitle = activity.findToolbarTitleText()
+            ?.takeUnless { it.isPolyglotTitle() }
+            ?: activity.title?.takeUnless { it.isPolyglotTitle() }
+            ?: fallbackTitle
     }
 
     fun show(title: CharSequence) {
@@ -20,9 +25,23 @@ internal class HostToolbarTitle(
     }
 
     fun restore() {
-        show(originalTitle ?: return)
+        val title = originalTitle
+            ?.takeUnless { it.isPolyglotTitle() }
+            ?: fallbackTitle
+            ?: return
+        show(title)
         originalTitle = null
     }
+}
+
+internal fun Context.hostSettingsTitle(): CharSequence? {
+    for (name in HOST_SETTINGS_TITLE_RESOURCES) {
+        val id = resourceId(name, "string")
+        if (id != 0) {
+            return runCatching { getText(id) }.getOrNull()
+        }
+    }
+    return null
 }
 
 private fun Activity.setSettingsToolbarTitle(title: CharSequence) {
@@ -36,6 +55,9 @@ private fun Activity.setSettingsToolbarTitle(title: CharSequence) {
 
 private fun Activity.findToolbarTitleText(): CharSequence? =
     findToolbarTitleView()?.text?.takeIf { it.isNotBlank() }
+
+private fun CharSequence.isPolyglotTitle(): Boolean =
+    toString() == ENTRY_TITLE
 
 private fun Activity.findToolbarTitleView(): TextView? {
     val decor = window?.decorView ?: return null
@@ -83,4 +105,9 @@ private fun <T : View> View.descendants(type: Class<T>): Sequence<T> = sequence 
 private val TOOLBAR_RESOURCE_NAMES = arrayOf(
     "toolbar",
     "settings_toolbar_layout",
+)
+
+private val HOST_SETTINGS_TITLE_RESOURCES = arrayOf(
+    "settings",
+    "settings_title",
 )
