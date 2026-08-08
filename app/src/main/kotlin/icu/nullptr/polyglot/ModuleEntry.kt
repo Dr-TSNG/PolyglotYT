@@ -29,6 +29,7 @@ private const val TAG = "ModuleEntry"
 class ModuleEntry : XposedModule() {
     private lateinit var fileManager: FileManager
 
+    lateinit var hostVersionName: String
     lateinit var hostClassLoader: ClassLoader
     lateinit var config: ConfigManager
     lateinit var res: Resources
@@ -70,9 +71,11 @@ class ModuleEntry : XposedModule() {
             val am = amClass.findConstructorExact().newInstance() as AssetManager
             amClass.findMethodExact("addAssetPath", String::class.java)
                 .invoke(am, moduleApplicationInfo.sourceDir)
+            @Suppress("DEPRECATION")
             res = Resources(am, context.resources.displayMetrics, context.resources.configuration)
 
             val packageInfo = application.packageManager.getPackageInfo(param.packageName, 0)
+            hostVersionName = packageInfo.versionName!!
             val tag = "${param.packageName}:${packageInfo.longVersionCode}"
             DexKitRuntime.use(application.packageCodePath) {
                 logI(TAG, "DexKit bridge ready for $tag")

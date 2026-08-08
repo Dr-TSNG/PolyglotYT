@@ -20,6 +20,15 @@ class ConfigManager(context: Context, directory: File) {
 
     var maxRetries: Int by Pref("max_retries", 2)
 
+    var microsoftEndpoint: String by Pref(
+        "microsoft_endpoint",
+        "https://api.cognitive.microsofttranslator.com/translate",
+    )
+
+    var microsoftApiKey: String by Pref("microsoft_api_key", "")
+
+    var microsoftRegion: String by Pref("microsoft_region", "")
+
     var openAiEndpoint: String by Pref(
         "openai_endpoint",
         "https://api.openai.com/v1/chat/completions",

@@ -38,6 +38,38 @@ internal object PolyglotSettingsTree {
                     onSelected = { module.config.provider = it },
                 ),
                 TextSettingsNode(
+                    key = "$ENTRY_KEY.microsoft_endpoint",
+                    title = module.res.getString(R.string.microsoft_endpoint),
+                    icon = SettingsIcon.Endpoint,
+                    visible = { module.config.provider == ConfigManager.PROVIDER_MICROSOFT },
+                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI,
+                    value = { module.config.microsoftEndpoint },
+                    summary = { SettingsOptions.textOrNotSet(module.config.microsoftEndpoint) },
+                    onSubmitted = { module.config.microsoftEndpoint = it.trim() },
+                ),
+                TextSettingsNode(
+                    key = "$ENTRY_KEY.microsoft_api_key",
+                    title = module.res.getString(R.string.microsoft_api_key),
+                    icon = SettingsIcon.ApiKey,
+                    visible = { module.config.provider == ConfigManager.PROVIDER_MICROSOFT },
+                    inputType = InputType.TYPE_CLASS_TEXT or
+                        InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD or
+                        InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS,
+                    value = { module.config.microsoftApiKey },
+                    summary = { SettingsOptions.secretSummary(module.config.microsoftApiKey) },
+                    onSubmitted = { module.config.microsoftApiKey = it.trim() },
+                ),
+                TextSettingsNode(
+                    key = "$ENTRY_KEY.microsoft_region",
+                    title = module.res.getString(R.string.microsoft_region),
+                    icon = SettingsIcon.Language,
+                    visible = { module.config.provider == ConfigManager.PROVIDER_MICROSOFT },
+                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS,
+                    value = { module.config.microsoftRegion },
+                    summary = { SettingsOptions.textOrNotSet(module.config.microsoftRegion) },
+                    onSubmitted = { module.config.microsoftRegion = it.trim() },
+                ),
+                TextSettingsNode(
                     key = "$ENTRY_KEY.openai_endpoint",
                     title = module.res.getString(R.string.openai_endpoint),
                     icon = SettingsIcon.Endpoint,

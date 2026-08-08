@@ -3,35 +3,71 @@ package icu.nullptr.polyglot.translate.providers
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.translate.TranslationRequest
 import icu.nullptr.polyglot.translate.TranslationResult
 import icu.nullptr.polyglot.translate.Translator
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 import java.net.URLEncoder
-import java.util.Base64
 import java.util.Locale
 
 object MicrosoftTranslator : Translator {
-    const val AUTH_ENDPOINT = "https://edge.microsoft.com/translate/auth"
-    const val TRANSLATE_ENDPOINT = "https://api-edge.cognitive.microsofttranslator.com/translate"
-    const val TOKEN_REFRESH_MARGIN_MS = 60_000L
-    const val FALLBACK_TOKEN_TTL_MS = 8 * 60_000L
-
-    @Volatile
-    private var token: String = ""
-
-    @Volatile
-    private var tokenExpiresAtMs: Long = 0L
+    const val EDGE_ENDPOINT = "https://edge.microsoft.com/translate/translatetext"
+    const val DEFAULT_AZURE_ENDPOINT = "https://api.cognitive.microsofttranslator.com/translate"
 
     override fun translate(request: TranslationRequest): TranslationResult =
-        TranslationResult(
-            texts = request.texts.map { text ->
-                if (text.isBlank()) text else translateOne(text, request)
-            },
-        )
+        try {
+            translateWithEdge(request)
+        } catch (edgeError: Exception) {
+            if (module.config.microsoftApiKey.isBlank()) {
+                throw IllegalStateException("Microsoft Edge translate failed", edgeError)
+            }
 
-    private fun translateOne(text: String, request: TranslationRequest): String {
+            try {
+                translateWithAzure(request)
+            } catch (azureError: Exception) {
+                azureError.addSuppressed(edgeError)
+                throw azureError
+            }
+        }
+
+    private fun translateWithEdge(request: TranslationRequest): TranslationResult {
+        val nonBlankTexts = request.texts.filter { it.isNotBlank() }
+        if (nonBlankTexts.isEmpty()) {
+            return TranslationResult(request.texts)
+        }
+
+        val query = buildString {
+            append("from=").append(urlEncode(microsoftLanguage(request.sourceLanguage)))
+            append("&to=").append(urlEncode(microsoftLanguage(request.targetLanguage)))
+            append("&isEnterpriseClient=false")
+        }
+        val connection = URL("$EDGE_ENDPOINT?$query").openConnection() as HttpURLConnection
+        connection.requestMethod = "POST"
+        connection.doOutput = true
+        connection.connectTimeout = request.timeoutMs
+        connection.readTimeout = request.timeoutMs
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("Content-Type", "application/json")
+
+        connection.outputStream.use { stream ->
+            stream.write(buildEdgeRequestBody(nonBlankTexts).toByteArray(Charsets.UTF_8))
+        }
+
+        val translations = connection.use {
+            parseTranslations(it.readBodyOrThrow("Microsoft Edge translate"))
+        }
+        return mergeTranslations(request.texts, translations, "Microsoft Edge translate")
+    }
+
+    private fun translateWithAzure(request: TranslationRequest): TranslationResult {
+        val nonBlankTexts = request.texts.filter { it.isNotBlank() }
+        if (nonBlankTexts.isEmpty()) {
+            return TranslationResult(request.texts)
+        }
+
         val sourceLanguage = microsoftLanguage(request.sourceLanguage)
         val targetLanguage = microsoftLanguage(request.targetLanguage)
         val query = buildString {
@@ -40,64 +76,72 @@ object MicrosoftTranslator : Translator {
                 append("&from=").append(urlEncode(sourceLanguage))
             }
             append("&to=").append(urlEncode(targetLanguage))
-            append("&includeSentenceLength=true")
             append("&textType=plain")
         }
-
-        val connection = URL("$TRANSLATE_ENDPOINT?$query").openConnection() as HttpURLConnection
+        val endpoint = azureTranslateEndpoint(module.config.microsoftEndpoint)
+        val separator = if ('?' in endpoint) '&' else '?'
+        val connection = URL("$endpoint$separator$query").openConnection() as HttpURLConnection
         connection.requestMethod = "POST"
         connection.doOutput = true
         connection.connectTimeout = request.timeoutMs
         connection.readTimeout = request.timeoutMs
         connection.setRequestProperty("Accept", "application/json")
-        connection.setRequestProperty("Content-Type", "application/json")
-        connection.setRequestProperty("Authorization", "Bearer ${authToken(request.timeoutMs)}")
+        connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+        connection.setRequestProperty("Ocp-Apim-Subscription-Key", module.config.microsoftApiKey)
+        module.config.microsoftRegion.takeIf { it.isNotBlank() }?.let { region ->
+            connection.setRequestProperty("Ocp-Apim-Subscription-Region", region)
+        }
 
         connection.outputStream.use { stream ->
-            stream.write(buildRequestBody(text).toByteArray(Charsets.UTF_8))
+            stream.write(buildAzureRequestBody(nonBlankTexts).toByteArray(Charsets.UTF_8))
         }
 
-        return connection.use {
-            val body = it.readBodyOrThrow("Microsoft translate")
-            parseTranslation(body)
+        val translations = connection.use {
+            parseTranslations(it.readBodyOrThrow("Microsoft Azure translate"))
         }
+        return mergeTranslations(request.texts, translations, "Microsoft Azure translate")
     }
 
-    @Synchronized
-    private fun authToken(timeoutMs: Int): String {
-        val now = System.currentTimeMillis()
-        if (token.isNotBlank() && now < tokenExpiresAtMs - TOKEN_REFRESH_MARGIN_MS) {
-            return token
-        }
-
-        val connection = URL(AUTH_ENDPOINT).openConnection() as HttpURLConnection
-        connection.requestMethod = "GET"
-        connection.connectTimeout = timeoutMs
-        connection.readTimeout = timeoutMs
-
-        token = connection.use {
-            it.readBodyOrThrow("Microsoft auth").trim()
-        }
-        tokenExpiresAtMs = tokenExpiryMs(token) ?: (now + FALLBACK_TOKEN_TTL_MS)
-        return token
-    }
-
-    private fun buildRequestBody(text: String): String =
+    private fun buildEdgeRequestBody(texts: List<String>): String =
         JsonArray().apply {
-            add(
-                JsonObject().apply {
-                    addProperty("Text", text)
-                },
-            )
+            texts.forEach { text -> add(text) }
         }.toString()
 
-    private fun parseTranslation(body: String): String {
-        val root = JsonParser.parseString(body).asJsonArray
-        return root[0]
-            .asJsonObject["translations"]
-            .asJsonArray[0]
-            .asJsonObject["text"]
-            .asString
+    private fun buildAzureRequestBody(texts: List<String>): String =
+        JsonArray().apply {
+            texts.forEach { text ->
+                add(
+                    JsonObject().apply {
+                        addProperty("Text", text)
+                    },
+                )
+            }
+        }.toString()
+
+    private fun parseTranslations(body: String): List<String> =
+        JsonParser.parseString(body).asJsonArray.map { result ->
+            result.asJsonObject["translations"]
+                .asJsonArray[0]
+                .asJsonObject["text"]
+                .asString
+        }
+
+    private fun mergeTranslations(
+        originals: List<String>,
+        translations: List<String>,
+        label: String,
+    ): TranslationResult {
+        val expectedCount = originals.count { it.isNotBlank() }
+        check(translations.size == expectedCount) {
+            "$label returned ${translations.size} results for $expectedCount texts"
+        }
+
+        var translatedIndex = 0
+        return TranslationResult(
+            texts = originals.map { text ->
+                if (text.isBlank()) text else translations[translatedIndex++]
+            },
+        )
     }
 
     private fun HttpURLConnection.readBodyOrThrow(label: String): String {
@@ -116,13 +160,6 @@ object MicrosoftTranslator : Translator {
             disconnect()
         }
 
-    private fun tokenExpiryMs(jwt: String): Long? =
-        runCatching {
-            val payload = jwt.split(".").getOrNull(1) ?: return null
-            val json = String(Base64.getUrlDecoder().decode(payload), Charsets.UTF_8)
-            JsonParser.parseString(json).asJsonObject["exp"].asLong * 1000L
-        }.getOrNull()
-
     private fun microsoftLanguage(language: String): String =
         when (language.lowercase(Locale.ROOT)) {
             "auto" -> ""
@@ -130,6 +167,21 @@ object MicrosoftTranslator : Translator {
             "zh-tw", "zh-hk", "zh-hant" -> "zh-Hant"
             else -> language
         }
+
+    private fun azureTranslateEndpoint(configuredEndpoint: String): String {
+        val endpoint = configuredEndpoint.ifBlank { DEFAULT_AZURE_ENDPOINT }.trimEnd('/')
+        val uri = URI(endpoint)
+        val path = uri.path.trimEnd('/')
+        if (path.endsWith("/translate", ignoreCase = true)) {
+            return endpoint
+        }
+
+        return if (uri.host.orEmpty().endsWith("cognitiveservices.azure.com", ignoreCase = true)) {
+            "$endpoint/translator/text/v3.0/translate"
+        } else {
+            "$endpoint/translate"
+        }
+    }
 
     private fun urlEncode(value: String): String =
         URLEncoder.encode(value, Charsets.UTF_8.name())

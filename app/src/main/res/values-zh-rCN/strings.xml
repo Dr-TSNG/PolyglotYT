@@ -20,6 +20,9 @@
     <string name="openai_api_key">API Key</string>
     <string name="openai_endpoint">API 端点</string>
     <string name="openai_model">模型</string>
+    <string name="microsoft_api_key">Azure 降级备用 API Key（可不填）</string>
+    <string name="microsoft_endpoint">Azure 降级备用 API 端点</string>
+    <string name="microsoft_region">Azure 降级备用区域（全局资源可留空）</string>
     <string name="test_connectivity">测试连通性</string>
     <string name="test_connectivity_summary">通过当前翻译服务发送一次轻量请求</string>
     <string name="connectivity_test_running">正在测试连通性…</string>

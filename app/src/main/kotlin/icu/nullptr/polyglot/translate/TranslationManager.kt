@@ -2,9 +2,9 @@ package icu.nullptr.polyglot.translate
 
 import icu.nullptr.polyglot.captions.CaptionCue
 import icu.nullptr.polyglot.module
-import icu.nullptr.polyglot.translate.providers.GoogleTranslator
 import icu.nullptr.polyglot.translate.providers.MicrosoftTranslator
 import icu.nullptr.polyglot.translate.providers.OpenAICompatibleTranslator
+import icu.nullptr.polyglot.translate.providers.YouTubeCommentTranslator
 import icu.nullptr.polyglot.util.logW
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -117,9 +117,8 @@ object TranslationManager {
     private fun translator(): Translator =
         when (module.config.provider.lowercase(Locale.ROOT)) {
             "openai", "openai-compatible", "custom" -> OpenAICompatibleTranslator
-            "google" -> GoogleTranslator
             "microsoft" -> MicrosoftTranslator
-            else -> MicrosoftTranslator
+            else -> YouTubeCommentTranslator
         }
 
     private fun retryDelayMs(attempt: Int): Long =

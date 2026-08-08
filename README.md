@@ -13,12 +13,12 @@ PolyglotYT is an Xposed module for the YouTube Android app. It provides an immer
 - Adds a PolyglotYT configuration entry to YouTube settings.
 - Adds an immersive translation quick switch next to the player CC button.
 - Supports the following translation services:
-  - Google Translate
-  - Microsoft Translator
+  - YouTube comment translation (Google)
+  - Microsoft Edge translation (no key required; optional Azure F0 fallback)
   - OpenAI-compatible API
 
 ## Supported Versions
 
 - Android: 9.0 and later, minimum SDK 28.
 - Xposed Framework: supporting libxposed API 101 and later.
-- YouTube: tested on version 21.25.530.
+- YouTube: tested on version 21.31.525.
