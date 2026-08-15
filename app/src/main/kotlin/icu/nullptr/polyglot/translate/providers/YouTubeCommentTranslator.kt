@@ -8,6 +8,7 @@ import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.translate.TranslationRequest
 import icu.nullptr.polyglot.translate.TranslationResult
 import icu.nullptr.polyglot.translate.Translator
+import icu.nullptr.polyglot.util.logD
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -24,9 +25,61 @@ object YouTubeCommentTranslator : Translator {
     override fun translate(request: TranslationRequest): TranslationResult =
         TranslationResult(
             texts = request.texts.map { text ->
-                if (text.isBlank()) text else translateOne(text, request)
+                if (text.isBlank()) text else translateOneWithFallback(text, request)
             },
         )
+
+    private fun translateOneWithFallback(text: String, request: TranslationRequest): String {
+        try {
+            return translateOne(text, request)
+        } catch (originalError: InvalidArgumentException) {
+            var previousError: Exception = originalError
+
+            val normalizedText = normalizeRejectedPunctuation(text)
+            if (normalizedText != text) {
+                try {
+                    return translateOne(normalizedText, request).also {
+                        logD(TAG, "YouTube translation succeeded after punctuation normalization, length=${text.length}")
+                    }
+                } catch (normalizedError: InvalidArgumentException) {
+                    normalizedError.addSuppressed(previousError)
+                    previousError = normalizedError
+                }
+            }
+
+            try {
+                val markedTranslation = translateOne(RETRY_MARKER_PREFIX + normalizedText, request)
+                val marker = RETRY_MARKER.find(markedTranslation)
+                    ?: throw IllegalStateException("YouTube translation retry marker was not preserved")
+                return markedTranslation.removeRange(marker.range).trim().also {
+                    logD(TAG, "YouTube translation succeeded with retry marker, length=${text.length}")
+                }
+            } catch (markedError: InvalidArgumentException) {
+                markedError.addSuppressed(previousError)
+                previousError = markedError
+            }
+
+            val sanitizedText = sanitizeForCommentTranslation(normalizedText)
+            if (sanitizedText == normalizedText) {
+                throw IllegalStateException(
+                    "YouTube comment translation rejected input after internal retries",
+                    previousError,
+                )
+            }
+            if (sanitizedText.isBlank()) {
+                return text
+            }
+
+            try {
+                return translateOne(sanitizedText, request).also {
+                    logD(TAG, "YouTube translation succeeded after Unicode sanitization, length=${text.length}")
+                }
+            } catch (sanitizedError: Exception) {
+                sanitizedError.addSuppressed(previousError)
+                throw sanitizedError
+            }
+        }
+    }
 
     private fun translateOne(text: String, request: TranslationRequest): String {
         val clientVersion = module.hostVersionName
@@ -132,16 +185,36 @@ object YouTubeCommentTranslator : Translator {
     }
 
     private fun HttpURLConnection.readBodyOrThrow(): String {
-        if (responseCode in 200..299) {
+        val statusCode = responseCode
+        if (statusCode in 200..299) {
             return inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         }
 
         val errorBody = errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+        if (statusCode == HttpURLConnection.HTTP_BAD_REQUEST &&
+            errorBody.contains(INVALID_ARGUMENT_MESSAGE, ignoreCase = true)
+        ) {
+            throw InvalidArgumentException(
+                "YouTube comment translation returned INVALID_ARGUMENT",
+            )
+        }
         throw IllegalStateException(
-            "YouTube comment translation failed: HTTP $responseCode $responseMessage " +
+            "YouTube comment translation failed: HTTP $statusCode $responseMessage " +
                 errorBody.replace(Regex("\\s+"), " ").take(ERROR_BODY_PREVIEW_LENGTH),
         )
     }
+
+    /** Mirrors YouTube.js' fallback for characters rejected by the comment action. */
+    private fun sanitizeForCommentTranslation(text: String): String =
+        text.replace(UNSUPPORTED_INPUT_CHARACTERS, "")
+            .replace(WHITESPACE, " ")
+            .trim()
+
+    private fun normalizeRejectedPunctuation(text: String): String =
+        text.replace("…", "...")
+            .replace(Regex("[‘’]"), "'")
+            .replace(Regex("[“”]"), "\"")
+            .replace(Regex("[–—]"), "-")
 
     private inline fun <T> HttpURLConnection.use(block: (HttpURLConnection) -> T): T =
         try {
@@ -187,9 +260,17 @@ object YouTubeCommentTranslator : Translator {
         }
     }
 
+    private class InvalidArgumentException(message: String) : IllegalStateException(message)
+
     private const val ANDROID_CLIENT_ID = "3"
+    private const val TAG = "YouTubeCommentTranslator"
     private const val PLACEHOLDER_ID = " "
     private const val WIRE_TYPE_VARINT = 0
     private const val WIRE_TYPE_LENGTH_DELIMITED = 2
     private const val ERROR_BODY_PREVIEW_LENGTH = 300
+    private const val INVALID_ARGUMENT_MESSAGE = "Request contains an invalid argument"
+    private const val RETRY_MARKER_PREFIX = "[0] "
+    private val UNSUPPORTED_INPUT_CHARACTERS = Regex("[^\\p{L}\\p{N}\\p{P}\\p{Z}]")
+    private val WHITESPACE = Regex("\\s+")
+    private val RETRY_MARKER = Regex("[\\[［【]\\s*0\\s*[\\]］】]")
 }
