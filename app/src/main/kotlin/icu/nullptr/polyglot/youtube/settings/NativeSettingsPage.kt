@@ -16,6 +16,7 @@ import icu.nullptr.polyglot.R
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.translate.ConnectivityTestResult
 import icu.nullptr.polyglot.translate.ConnectivityTester
+import icu.nullptr.polyglot.util.ModuleLogger
 import icu.nullptr.polyglot.util.logD
 import icu.nullptr.polyglot.util.logW
 import java.util.ArrayDeque
@@ -181,7 +182,20 @@ internal class NativeSettingsPage(
                     true
                 }
             }
-            is SettingsScreenNode -> null
+            is SettingsScreenNode -> adapter.createPreference(
+                context = context,
+                classes = classes,
+                key = node.key,
+                title = node.title,
+                icon = node.icon,
+                summary = null,
+            ).also { preference ->
+                controller.registerClickHandler(preference) {
+                    val screen = renderScreen(node) ?: return@registerClickHandler false
+                    navigateTo(screen, pushCurrent = true)
+                    true
+                }
+            }
         }
 
     private fun openSelectionDialog(node: SelectionSettingsNode) {
@@ -194,7 +208,7 @@ internal class NativeSettingsPage(
                 val option = node.options.getOrNull(which) ?: return@setSingleChoiceItems
                 if (option.value != node.selectedValue()) {
                     node.onSelected(option.value)
-                    rebuildRootScreen()
+                    rebuildCurrentScreen()
                 } else {
                     refreshSummaries()
                 }
@@ -231,7 +245,7 @@ internal class NativeSettingsPage(
             .setView(container)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 node.onSubmitted(input.text?.toString().orEmpty())
-                rebuildRootScreen()
+                rebuildCurrentScreen()
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -243,7 +257,23 @@ internal class NativeSettingsPage(
     private fun handleSettingsAction(action: SettingsAction) {
         when (action) {
             SettingsAction.TestConnectivity -> testConnectivity()
+            SettingsAction.ExportLog -> exportLog()
         }
+    }
+
+    private fun exportLog() {
+        val path = ModuleLogger.logFilePath()
+        AlertDialog.Builder(dialogContext())
+            .setTitle(module.res.getString(R.string.export_log))
+            .setMessage(
+                if (path == null) {
+                    module.res.getString(R.string.export_log_empty)
+                } else {
+                    module.res.getString(R.string.export_log_message, path)
+                },
+            )
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun testConnectivity() {
@@ -300,10 +330,10 @@ internal class NativeSettingsPage(
                 else text.take(MAX_CONNECTIVITY_RESULT_LENGTH) + "..."
             }
 
-    private fun rebuildRootScreen() {
-        val screen = renderScreen(PolyglotSettingsTree.root()) ?: return
+    private fun rebuildCurrentScreen() {
+        val node = currentScreen?.node ?: return
+        val screen = renderScreen(node) ?: return
         currentScreen = screen
-        backStack.clear()
 
         if (adapter.showPreferenceScreen(fragment, screen.screen)) {
             toolbarTitle.show(screen.node.title)

@@ -7,9 +7,11 @@ class FileManager(context: Context) {
 
     val configDir = filesDir.resolve("config")
     val dexKitDir = filesDir.resolve("dexkit")
+    val logDir = filesDir.resolve("logs")
 
     init {
         configDir.mkdirs()
         dexKitDir.mkdirs()
+        logDir.mkdirs()
     }
 }

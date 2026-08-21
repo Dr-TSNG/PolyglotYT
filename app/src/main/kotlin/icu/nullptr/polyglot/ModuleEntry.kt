@@ -8,6 +8,7 @@ import android.widget.Toast
 import icu.nullptr.polyglot.core.ConfigManager
 import icu.nullptr.polyglot.core.FileManager
 import icu.nullptr.polyglot.util.DexKitRuntime
+import icu.nullptr.polyglot.util.ModuleLogger
 import icu.nullptr.polyglot.util.findAndHookAfter
 import icu.nullptr.polyglot.util.findClass
 import icu.nullptr.polyglot.util.findConstructorExact
@@ -76,6 +77,13 @@ class ModuleEntry : XposedModule() {
 
             val packageInfo = application.packageManager.getPackageInfo(param.packageName, 0)
             hostVersionName = packageInfo.versionName!!
+
+            // Initialize the file logger AFTER hostVersionName is set (accessing
+            // it earlier crashes on the uninitialized lateinit, which previously
+            // prevented the module from loading at all).
+            ModuleLogger.init(fileManager.logDir)
+            logI(TAG, "Module initialized, hostVersionName=$hostVersionName")
+
             val tag = "${param.packageName}:${packageInfo.longVersionCode}"
             DexKitRuntime.use(application.packageCodePath) {
                 logI(TAG, "DexKit bridge ready for $tag")
