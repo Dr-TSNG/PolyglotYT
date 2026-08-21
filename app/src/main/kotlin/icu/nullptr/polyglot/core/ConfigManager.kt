@@ -16,9 +16,27 @@ class ConfigManager(context: Context, directory: File) {
 
     var subtitleMode: String by Pref("bilingual_order", SUBTITLE_ORIGINAL_FIRST)
 
+    var subtitleStyleEnabled: Boolean by Pref("subtitle_style_enabled", true)
+
+    var subtitleSentenceBreak: Boolean by Pref("subtitle_sentence_break", false)
+
+    var subtitleTranslationScale: Float by Pref("subtitle_translation_scale", 0.75f)
+
+    var subtitleBaseScale: Float by Pref("subtitle_base_scale", 0.85f)
+
+    var subtitleLineWidth: Int by Pref("subtitle_line_width", 120)
+
+    var subtitleTranslationColor: String by Pref("subtitle_translation_color", "dim")
+
+    var subtitleSeparator: String by Pref("subtitle_separator", "")
+
     var requestTimeoutMs: Int by Pref("request_timeout_ms", 45000)
 
     var maxRetries: Int by Pref("max_retries", 2)
+
+    var translationBatchSize: Int by Pref("translation_batch_size", 8)
+
+    var translationBatchWindowMs: Int by Pref("translation_batch_window_ms", 150)
 
     var microsoftEndpoint: String by Pref(
         "microsoft_endpoint",
@@ -83,6 +101,24 @@ class ConfigManager(context: Context, directory: File) {
     init {
         MMKV.initialize(context, directory.absolutePath)
         kv = MMKV.defaultMMKV()
+        migrateLegacyDefaults()
+    }
+
+    /**
+     * The subtitle base scale used to default to 1.0f, which made long
+     * captions wrap onto several lines inside YouTube's narrow subtitle
+     * container. New installs default to 0.85f; existing installs that never
+     * touched the setting still hold the old 1.0f value and are migrated here.
+     */
+    private fun migrateLegacyDefaults() {
+        if (kv.containsKey("subtitle_base_scale") && kv.getFloat("subtitle_base_scale", 0.85f) == 1.0f) {
+            kv.putFloat("subtitle_base_scale", 0.85f)
+        }
+        // Old line-width default was 80 (aggressive wrapping). Migrate it to
+        // 120 so long captions stay on one line unless YouTube wraps them.
+        if (kv.containsKey("subtitle_line_width") && kv.getInt("subtitle_line_width", 120) == 80) {
+            kv.putInt("subtitle_line_width", 120)
+        }
     }
 
     companion object {

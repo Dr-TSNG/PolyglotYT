@@ -28,6 +28,13 @@ internal object PolyglotSettingsTree {
                     summary = { module.res.getString(R.string.test_connectivity_summary) },
                     action = SettingsAction.TestConnectivity,
                 ),
+                ActionSettingsNode(
+                    key = "$ENTRY_KEY.export_log",
+                    title = module.res.getString(R.string.export_log),
+                    icon = SettingsIcon.NetworkCheck,
+                    summary = { module.res.getString(R.string.export_log_summary) },
+                    action = SettingsAction.ExportLog,
+                ),
                 SelectionSettingsNode(
                     key = "$ENTRY_KEY.provider",
                     title = module.res.getString(R.string.translation_service),
@@ -110,6 +117,99 @@ internal object PolyglotSettingsTree {
                     selectedLabel = { SettingsOptions.languageLabel(module.config.targetLanguage) },
                     onSelected = { module.config.targetLanguage = it },
                 ),
+                SettingsScreenNode(
+                    key = "$ENTRY_KEY.style_screen",
+                    title = module.res.getString(R.string.subtitle_style),
+                    icon = SettingsIcon.Subtitle,
+                    children = listOf(
+                        SwitchSettingsNode(
+                            key = "$ENTRY_KEY.style_enabled",
+                            title = module.res.getString(R.string.subtitle_style_enabled),
+                            icon = SettingsIcon.Subtitle,
+                            checked = { module.config.subtitleStyleEnabled },
+                            summary = { module.res.getString(R.string.subtitle_style_enabled_summary) },
+                            onChanged = { module.config.subtitleStyleEnabled = it },
+                        ),
+                        SwitchSettingsNode(
+                            key = "$ENTRY_KEY.sentence_break",
+                            title = module.res.getString(R.string.subtitle_sentence_break),
+                            icon = SettingsIcon.Subtitle,
+                            checked = { module.config.subtitleSentenceBreak },
+                            summary = { module.res.getString(R.string.subtitle_sentence_break_summary) },
+                            onChanged = { module.config.subtitleSentenceBreak = it },
+                        ),
+                        SelectionSettingsNode(
+                            key = "$ENTRY_KEY.base_scale",
+                            title = module.res.getString(R.string.subtitle_base_scale),
+                            icon = SettingsIcon.Subtitle,
+                            options = SettingsOptions.baseScales,
+                            selectedValue = { module.config.subtitleBaseScale.toString() },
+                            selectedLabel = { SettingsOptions.baseScaleLabel(module.config.subtitleBaseScale.toString()) },
+                            onSelected = { module.config.subtitleBaseScale = it.toFloat() },
+                        ),
+                        SelectionSettingsNode(
+                            key = "$ENTRY_KEY.translation_scale",
+                            title = module.res.getString(R.string.translation_scale),
+                            icon = SettingsIcon.Subtitle,
+                            options = SettingsOptions.translationScales,
+                            selectedValue = { module.config.subtitleTranslationScale.toString() },
+                            selectedLabel = { SettingsOptions.translationScaleLabel(module.config.subtitleTranslationScale.toString()) },
+                            onSelected = { module.config.subtitleTranslationScale = it.toFloat() },
+                        ),
+                        SelectionSettingsNode(
+                            key = "$ENTRY_KEY.line_width",
+                            title = module.res.getString(R.string.subtitle_line_width),
+                            icon = SettingsIcon.Subtitle,
+                            options = SettingsOptions.lineWidths,
+                            selectedValue = { module.config.subtitleLineWidth.toString() },
+                            selectedLabel = { SettingsOptions.lineWidthLabel(module.config.subtitleLineWidth.toString()) },
+                            onSelected = { module.config.subtitleLineWidth = it.toInt() },
+                        ),
+                        SelectionSettingsNode(
+                            key = "$ENTRY_KEY.translation_color",
+                            title = module.res.getString(R.string.translation_color),
+                            icon = SettingsIcon.Subtitle,
+                            options = SettingsOptions.translationColors,
+                            selectedValue = { module.config.subtitleTranslationColor },
+                            selectedLabel = { SettingsOptions.translationColorLabel(module.config.subtitleTranslationColor) },
+                            onSelected = { module.config.subtitleTranslationColor = it },
+                        ),
+                        SelectionSettingsNode(
+                            key = "$ENTRY_KEY.subtitle_separator",
+                            title = module.res.getString(R.string.subtitle_separator),
+                            icon = SettingsIcon.Subtitle,
+                            options = SettingsOptions.subtitleSeparators,
+                            selectedValue = { module.config.subtitleSeparator },
+                            selectedLabel = { SettingsOptions.subtitleSeparatorLabel(module.config.subtitleSeparator) },
+                            onSelected = { module.config.subtitleSeparator = it },
+                        ),
+                    ),
+                ),
+                SettingsScreenNode(
+                    key = "$ENTRY_KEY.performance_screen",
+                    title = module.res.getString(R.string.translation_performance),
+                    icon = SettingsIcon.Model,
+                    children = listOf(
+                        TextSettingsNode(
+                            key = "$ENTRY_KEY.batch_size",
+                            title = module.res.getString(R.string.translation_batch_size),
+                            icon = SettingsIcon.Model,
+                            inputType = InputType.TYPE_CLASS_NUMBER,
+                            value = { module.config.translationBatchSize.toString() },
+                            summary = { module.res.getString(R.string.translation_batch_size_summary, module.config.translationBatchSize) },
+                            onSubmitted = { module.config.translationBatchSize = it.toIntOrNull()?.coerceIn(1, 64) ?: 8 },
+                        ),
+                        TextSettingsNode(
+                            key = "$ENTRY_KEY.batch_window",
+                            title = module.res.getString(R.string.translation_batch_window),
+                            icon = SettingsIcon.Model,
+                            inputType = InputType.TYPE_CLASS_NUMBER,
+                            value = { module.config.translationBatchWindowMs.toString() },
+                            summary = { module.res.getString(R.string.translation_batch_window_summary, module.config.translationBatchWindowMs) },
+                            onSubmitted = { module.config.translationBatchWindowMs = it.toIntOrNull()?.coerceIn(0, 2000) ?: 150 },
+                        ),
+                    ),
+                ),
                 SelectionSettingsNode(
                     key = "$ENTRY_KEY.subtitle_mode",
                     title = module.res.getString(R.string.subtitle_mode),
@@ -181,6 +281,7 @@ internal data class ActionSettingsNode(
 
 internal enum class SettingsAction {
     TestConnectivity,
+    ExportLog,
 }
 
 internal fun SettingsNode.summary(): CharSequence? =

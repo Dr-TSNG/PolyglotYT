@@ -20,8 +20,8 @@ android {
 
     defaultConfig {
         applicationId = "icu.nullptr.polyglot"
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 11
+        versionName = "0.6.11"
         minSdk = 28
         targetSdk = 37
         compileSdk = 37

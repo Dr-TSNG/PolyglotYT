@@ -76,7 +76,7 @@ object CaptionHook : BaseHook {
             val result = chain.proceed()
             if (module.config.enabled) {
                 val newCues = observeTimeline(result)
-                requestTranslations(newCues, source = "timeline")
+                requestTranslations(newCues, source = "timeline", priority = PRIORITY_TIMELINE)
                 logObservedCueCount(newCues.size, source = "timeline")
             }
             result
@@ -114,28 +114,65 @@ object CaptionHook : BaseHook {
                 val original = chain.getArg(0) as? CharSequence
                     ?: return@hook chain.proceed()
                 val normalizedOriginal = CaptionCue.normalize(original.toString())
+                if (normalizedOriginal.isEmpty()) {
+                    return@hook chain.proceed()
+                }
+
                 rememberRendererState(thisObject, method, normalizedOriginal)
+                logRenderCall(thisObject, normalizedOriginal)
 
-                if (session.observeRenderedText(original)) {
-                    val length = normalizedOriginal.length
-                    logV(name, "Observed rendered caption text, length=$length")
+                // Request a translation for whatever is being rendered (the
+                // fragment or the full cue); prefetch upcoming cues so the
+                // next caption is usually ready when it shows.
+                if (!session.isFormattedRenderedText(normalizedOriginal)) {
+                    requestTranslation(normalizedOriginal, source = "render", priority = PRIORITY_VISIBLE)
+                    prefetchNearbyCues(normalizedOriginal)
                 }
 
-                session.translatedCueContaining(normalizedOriginal)?.let { translation ->
-                    val replacement = replacementForTranslatedCue(
-                        cueText = translation.original,
-                        renderedFragment = normalizedOriginal,
-                        translated = translation.translated,
+                // If this text is exactly a bilingual block we injected
+                // earlier (YouTube re-renders our setText), pass it through
+                // untouched. This stops the refresh loop: inject ->
+                // re-render -> re-inject. Only the exact recorded block is
+                // matched; fragments that are prefixes of a cue must still
+                // be processed normally.
+                if (session.isExactlyFormattedText(normalizedOriginal)) {
+                    return@hook chain.proceed()
+                }
+
+                // Map the rendered fragment to its full cue and translation.
+                // YouTube renders one cue through several fragment calls; the
+                // full cue text is what carries the translation in the cache.
+                var matching = session.translatedCueContaining(normalizedOriginal)
+
+                // Fallback: if the fragment itself has a translation in the
+                // cache (the render path requested it directly), use it so
+                // the caption never shows untranslated text while waiting.
+                var replacementText: CharSequence? = null
+                if (matching != null) {
+                    replacementText = replacementForTranslatedCue(
+                        matching.original, normalizedOriginal, matching.translated,
                     )
-                    return@hook chain.proceed(arrayOf(replacement))
+                } else {
+                    val ownTranslation = session.translationFor(normalizedOriginal)
+                    if (ownTranslation != null) {
+                        logV(name, "Fragment fallback translation: " + shorten(normalizedOriginal))
+                        replacementText = BilingualFormatter.format(normalizedOriginal, ownTranslation)
+                    }
                 }
 
-                val formatted = formatCaption(original)
-                if (formatted === original || formatted.toString() == original.toString()) {
-                    chain.proceed()
-                } else {
-                    chain.proceed(arrayOf(formatted))
+                if (replacementText != null) {
+                    session.rememberFormattedText(replacementText)
+                    return@hook chain.proceed(arrayOf(replacementText))
                 }
+
+                // No matching cue yet or translation still pending: fall
+                // back to the plain caption formatter.
+                val formatted = formatCaption(original)
+                if (formatted.toString() != original.toString()) {
+                    session.rememberFormattedText(formatted)
+                    return@hook chain.proceed(arrayOf(formatted))
+                }
+                chain.proceed()
             }
 
             logD(name, "Hooked caption renderer: ${method.shortName()}")
@@ -189,7 +226,7 @@ object CaptionHook : BaseHook {
             hook(method) { chain ->
                 if (module.config.enabled) {
                     val newCues = observeCueList(chain.getArg(0))
-                    requestTranslations(newCues, source = "overlay")
+                    requestTranslations(newCues, source = "overlay", priority = PRIORITY_UPCOMING)
                     logObservedCueCount(newCues.size, source = "overlay")
                 }
                 chain.proceed()
@@ -323,25 +360,52 @@ object CaptionHook : BaseHook {
         }
     }
 
-    private fun requestTranslations(cues: List<CaptionCue>, source: String) {
+    private fun requestTranslations(cues: List<CaptionCue>, source: String, priority: Int) {
+        // Translate each cue individually. Batching several cues into one
+        // request risks misaligned translations when the provider reorders
+        // or drops lines (seen as "wrong translation" on screen), so we keep
+        // the reliable per-cue path and rely on prefetch for context.
         for (cue in cues) {
-            requestTranslation(cue.text, source)
+            requestTranslation(cue.text, source, priority)
         }
     }
 
-    private fun requestTranslation(text: String, source: String) {
+    private fun requestTranslation(text: String, source: String, priority: Int) {
         if (session.translationFor(text) != null) return
+        if (session.isRecentlyFailed(text)) return
 
         val sourceLanguage = CaptionLanguageState.currentSourceLanguage()
-        TranslationManager.translateAsync(
+        TranslationManager.enqueue(
             text = text,
             context = "YouTube subtitle $source",
             sourceLanguage = sourceLanguage,
-        ) { original, translated ->
-            session.putTranslation(original, translated)
-            logV(name, "Translated caption from $source, sourceLanguage=$sourceLanguage, length=${original.length}")
-            refreshVisibleRenderers(original, source)
-        }
+            priority = priority,
+            onTranslated = { original, translated ->
+                session.putTranslation(original, translated)
+                logV(name, "Translated caption from $source, sourceLanguage=$sourceLanguage, length=${original.length}")
+            },
+            onFailed = { original ->
+                session.putFailure(original)
+                logV(name, "Caption translation failed from $source, length=${original.length}")
+            },
+        )
+    }
+
+    private fun shorten(text: String, max: Int = 60): String =
+        if (text.length <= max) text else text.take(max) + "…"
+
+    /**
+     * Prefetches the cues that will appear shortly after the currently
+     * rendered one (same idea as immersive-translate translating the visible
+     * area first and prefetching nearby content), so the next caption usually
+     * already has its translation by the time it shows.
+     */
+    private fun prefetchNearbyCues(renderedText: String) {
+        val anchorStartMs = session.cueStartMsFor(renderedText) ?: return
+        val nearby = session.cuesInWindow(anchorStartMs, PREFETCH_WINDOW_MS)
+        if (nearby.isEmpty()) return
+        logV(name, "Prefetching ${nearby.size} upcoming cue(s) after $anchorStartMs ms")
+        requestTranslations(nearby, "prefetch", PRIORITY_UPCOMING)
     }
 
     private fun observeCaptionTrack(track: Any?, source: String) {
@@ -352,6 +416,70 @@ object CaptionHook : BaseHook {
             rendererStates.clear()
         }
         rendererSequence.set(0L)
+    }
+
+    /**
+     * Builds the text to render for a caption render call. When the
+     * rendered fragment belongs to a translated cue (it equals the cue or
+     * is the tail of it), the full bilingual block is returned. When the
+     * fragment is a leading piece of the cue, an empty string is returned
+     * so the caption window does not show partial rows around the block.
+     */
+    private fun replacementForTranslatedCue(
+        cueText: String,
+        renderedFragment: String,
+        translated: String,
+    ): CharSequence {
+        val normalizedCue = CaptionCue.normalize(cueText)
+        val normalizedFragment = CaptionCue.normalize(renderedFragment)
+        if (normalizedCue.isEmpty() || normalizedFragment.isEmpty()) {
+            return renderedFragment
+        }
+
+        val belongsToCue =
+            normalizedCue == normalizedFragment ||
+            normalizedCue.endsWith(normalizedFragment)
+        return if (belongsToCue) {
+            BilingualFormatter.format(normalizedCue, translated)
+        } else {
+            ""
+        }
+    }
+
+    /**
+     * DIAGNOSTIC: log every render call with the view instance identity,
+     * visibility state and fragment text, so we can tell which renderer is
+     * actually visible on screen. Throttled per (instance, text) pair.
+     */
+    private val renderDiagLastLog = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    private fun logRenderCall(renderer: Any, normalizedText: String) {
+        val now = System.currentTimeMillis()
+        val identity = System.identityHashCode(renderer)
+        val key = identity.toString() + "|" + normalizedText
+        val last = renderDiagLastLog[key] ?: 0L
+        if (now - last < 3000L) return
+        renderDiagLastLog[key] = now
+        if (renderDiagLastLog.size > 1000) renderDiagLastLog.clear()
+
+        var visibility = "?"
+        var bounds = "?"
+        var shown = "?"
+        if (renderer is View) {
+            visibility = when (renderer.visibility) {
+                View.VISIBLE -> "VISIBLE"
+                View.INVISIBLE -> "INVISIBLE"
+                else -> "GONE"
+            }
+            shown = if (renderer.isShown) "shown" else "hidden"
+            bounds = "(" + renderer.left + "," + renderer.top + ")-(" + renderer.right + "," + renderer.bottom + ")"
+        }
+        val inCache = session.isRenderedFullCue(normalizedText)
+        val hasTrans = session.translationFor(normalizedText) != null
+        logV(name, "RENDER-DIAG id=" + identity + " cls=" + renderer.javaClass.name +
+            " vis=" + visibility + " " + shown + " bounds=" + bounds +
+            " fullCue=" + inCache + " trans=" + hasTrans +
+            " text='" + shorten(normalizedText, 48) + "'")
     }
 
     private fun rememberRendererState(renderer: Any, method: Method, normalizedText: String) {
@@ -367,58 +495,12 @@ object CaptionHook : BaseHook {
         }
     }
 
-    private fun replacementForTranslatedCue(
-        cueText: String,
-        renderedFragment: String,
-        translated: String,
-    ): CharSequence {
-        val normalizedCue = CaptionCue.normalize(cueText)
-        val normalizedFragment = CaptionCue.normalize(renderedFragment)
-        if (normalizedCue.isEmpty() || normalizedFragment.isEmpty()) return renderedFragment
-
-        val shouldDisplayBlock = normalizedCue == normalizedFragment ||
-                normalizedCue.endsWith(normalizedFragment)
-        return if (shouldDisplayBlock) {
-            BilingualFormatter.format(normalizedCue, translated)
-        } else {
-            ""
-        }
-    }
-
-    private fun refreshVisibleRenderers(original: String, source: String) {
-        val normalized = CaptionCue.normalize(original)
-        if (normalized.isEmpty()) return
-
-        mainHandler.post {
-            val now = System.currentTimeMillis()
-            val snapshot = synchronized(rendererStates) {
-                rendererStates.entries
-                    .filter { (_, state) -> now - state.updatedAtMs <= RENDERER_STATE_TTL_MS }
-                    .map { (renderer, state) -> renderer to state }
+    private fun touchRendererState(renderer: Any, state: RendererState) {
+        synchronized(rendererStates) {
+            val current = rendererStates[renderer]
+            if (current != null && current.normalizedText == state.normalizedText) {
+                rendererStates[renderer] = state.copy(updatedAtMs = System.currentTimeMillis())
             }
-
-            val formatted = formatCaption(normalized)
-            if (formatted.toString() == normalized) return@post
-
-            val exactTargets = snapshot.filter { (_, state) -> state.normalizedText == normalized }
-            if (exactTargets.isNotEmpty()) {
-                for ((renderer, state) in exactTargets) {
-                    invokeRenderer(renderer, state.method, formatted, source, normalized.length)
-                }
-                return@post
-            }
-
-            val coveredTargets = snapshot
-                .filter { (_, state) -> state.normalizedText.isNotEmpty() && normalized.contains(state.normalizedText) }
-                .sortedBy { (_, state) -> state.sequence }
-            if (coveredTargets.isEmpty()) return@post
-
-            for ((renderer, state) in coveredTargets.dropLast(1)) {
-                invokeRenderer(renderer, state.method, "", source, normalized.length)
-            }
-
-            val anchor = coveredTargets.last()
-            invokeRenderer(anchor.first, anchor.second.method, formatted, source, normalized.length)
         }
     }
 
@@ -532,7 +614,13 @@ object CaptionHook : BaseHook {
     private const val MENU_ITEM_CAPTIONS_KEY = "menu_item_captions"
     private const val EDITABLE_TYPE = "android.text.Editable"
     private const val SPARSE_ARRAY_TYPE = "android.util.SparseArray"
-    private const val RENDERER_STATE_TTL_MS = 2_000L
+    private const val RENDERER_STATE_TTL_MS = 60_000L
+    private const val PREFETCH_WINDOW_MS = 10_000L
+    private const val REFRESH_COOLDOWN_MS = 2_000L
+
+    private const val PRIORITY_VISIBLE = TranslationManager.PRIORITY_VISIBLE
+    private const val PRIORITY_UPCOMING = TranslationManager.PRIORITY_UPCOMING
+    private const val PRIORITY_TIMELINE = TranslationManager.PRIORITY_BACKGROUND
 
     private data class RendererState(
         val method: Method,
