@@ -491,6 +491,7 @@ object CaptionHook : BaseHook {
             }
         }.filter { method ->
             method.declaredClass?.hasInstanceFieldTypeInHierarchy(EDITABLE_TYPE) == true
+            && !method.isConstructor
         }
 
     private fun DexKitBridge.findCaptionOverlayUpdateMethods(): List<MethodData> =
@@ -501,6 +502,7 @@ object CaptionHook : BaseHook {
             }
         }.filter { method ->
             method.declaredClass?.hasInstanceFieldTypeInHierarchy(SPARSE_ARRAY_TYPE) == true
+            && !method.isConstructor
         }
 
     private fun DexKitBridge.findCaptionTrackClassName(): String? =
