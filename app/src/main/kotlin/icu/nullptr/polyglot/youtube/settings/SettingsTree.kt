@@ -6,6 +6,7 @@ import icu.nullptr.polyglot.core.ConfigManager
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.settings.SettingsOption
 import icu.nullptr.polyglot.settings.SettingsOptions
+import icu.nullptr.polyglot.translate.providers.OpenAIEndpoint
 
 internal object PolyglotSettingsTree {
     fun root(): SettingsScreenNode =
@@ -77,7 +78,7 @@ internal object PolyglotSettingsTree {
                     inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI,
                     value = { module.config.openAiEndpoint },
                     summary = { SettingsOptions.textOrNotSet(module.config.openAiEndpoint) },
-                    onSubmitted = { module.config.openAiEndpoint = it.trim() },
+                    onSubmitted = { module.config.openAiEndpoint = OpenAIEndpoint.normalize(it) },
                 ),
                 TextSettingsNode(
                     key = "$ENTRY_KEY.openai_api_key",

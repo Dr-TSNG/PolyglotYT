@@ -152,8 +152,9 @@ object OpenAICompatibleTranslator : Translator {
         }
 
         val startedAtMs = System.currentTimeMillis()
-        val connection = URL(module.config.openAiEndpoint.ifBlank { DEFAULT_ENDPOINT })
-            .openConnection() as HttpURLConnection
+        val connection = URL(
+            OpenAIEndpoint.normalize(module.config.openAiEndpoint),
+        ).openConnection() as HttpURLConnection
         connection.requestMethod = "POST"
         connection.doOutput = true
         connection.connectTimeout = request.timeoutMs
