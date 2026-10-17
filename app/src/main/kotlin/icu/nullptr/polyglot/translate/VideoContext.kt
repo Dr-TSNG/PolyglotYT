@@ -3,8 +3,7 @@ package icu.nullptr.polyglot.translate
 /**
  * Holds metadata about the video that is currently being translated.
  *
- * The title hook is not installed yet, so [currentTitle] is intentionally empty.
- * A future host hook should call [updateTitle] whenever the player title changes.
+ * The video title hook calls [updateTitle] whenever the player metadata changes.
  */
 object VideoContext {
     private const val MAX_TITLE_LENGTH = 200
