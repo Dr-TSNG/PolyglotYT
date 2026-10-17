@@ -105,7 +105,7 @@ internal object PolyglotSettingsTree {
                 SelectionSettingsNode(
                     key = "$ENTRY_KEY.openai_thinking_mode",
                     title = module.res.getString(R.string.thinking_mode),
-                    icon = SettingsIcon.Model,
+                    icon = SettingsIcon.Thinking,
                     visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
                     options = SettingsOptions.thinkingModes,
                     selectedValue = { module.config.openAiThinkingMode },
@@ -121,7 +121,7 @@ internal object PolyglotSettingsTree {
                 SelectionSettingsNode(
                     key = "$ENTRY_KEY.openai_thinking_parameter",
                     title = module.res.getString(R.string.thinking_parameter),
-                    icon = SettingsIcon.Model,
+                    icon = SettingsIcon.ThinkingParameter,
                     visible = {
                         module.config.provider == ConfigManager.PROVIDER_OPENAI &&
                             module.config.openAiThinkingMode != ConfigManager.THINKING_MODE_DEFAULT
@@ -136,7 +136,7 @@ internal object PolyglotSettingsTree {
                 TextSettingsNode(
                     key = "$ENTRY_KEY.openai_reasoning_effort",
                     title = module.res.getString(R.string.reasoning_effort),
-                    icon = SettingsIcon.Language,
+                    icon = SettingsIcon.ReasoningEffort,
                     visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
                     inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS,
                     value = { module.config.openAiReasoningEffort },
@@ -151,7 +151,7 @@ internal object PolyglotSettingsTree {
                 SwitchSettingsNode(
                     key = "$ENTRY_KEY.openai_batch",
                     title = module.res.getString(R.string.batch_translation),
-                    icon = SettingsIcon.Model,
+                    icon = SettingsIcon.Batch,
                     visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
                     checked = { module.config.batchTranslationEnabled },
                     summary = {
@@ -162,7 +162,7 @@ internal object PolyglotSettingsTree {
                 SwitchSettingsNode(
                     key = "$ENTRY_KEY.openai_video_title",
                     title = module.res.getString(R.string.include_video_title),
-                    icon = SettingsIcon.Subtitle,
+                    icon = SettingsIcon.Title,
                     visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
                     checked = { module.config.includeVideoTitle },
                     summary = { SettingsOptions.enabledSummary(module.config.includeVideoTitle) },
@@ -266,6 +266,11 @@ internal enum class SettingsIcon(val drawableRes: Int) {
     Endpoint(R.drawable.outline_data_object_24),
     ApiKey(R.drawable.outline_key_24),
     Model(R.drawable.outline_deployed_code_24),
+    Thinking(R.drawable.outline_psychology_24),
+    ThinkingParameter(R.drawable.outline_tune_24),
+    ReasoningEffort(R.drawable.outline_speed_24),
+    Batch(R.drawable.outline_layers_24),
+    Title(R.drawable.outline_title_24),
     NetworkCheck(R.drawable.outline_network_check_24),
     Language(R.drawable.outline_language_24),
     Subtitle(R.drawable.outline_closed_caption_24),
