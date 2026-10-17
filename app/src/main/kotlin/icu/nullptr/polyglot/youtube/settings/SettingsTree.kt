@@ -101,6 +101,26 @@ internal object PolyglotSettingsTree {
                     summary = { SettingsOptions.textOrNotSet(module.config.openAiModel) },
                     onSubmitted = { module.config.openAiModel = it.trim() },
                 ),
+                SwitchSettingsNode(
+                    key = "$ENTRY_KEY.openai_batch",
+                    title = module.res.getString(R.string.batch_translation),
+                    icon = SettingsIcon.Model,
+                    visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
+                    checked = { module.config.batchTranslationEnabled },
+                    summary = {
+                        SettingsOptions.enabledSummary(module.config.batchTranslationEnabled)
+                    },
+                    onChanged = { module.config.batchTranslationEnabled = it },
+                ),
+                SwitchSettingsNode(
+                    key = "$ENTRY_KEY.openai_video_title",
+                    title = module.res.getString(R.string.include_video_title),
+                    icon = SettingsIcon.Subtitle,
+                    visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
+                    checked = { module.config.includeVideoTitle },
+                    summary = { SettingsOptions.enabledSummary(module.config.includeVideoTitle) },
+                    onChanged = { module.config.includeVideoTitle = it },
+                ),
                 SelectionSettingsNode(
                     key = "$ENTRY_KEY.target_language",
                     title = module.res.getString(R.string.target_language),

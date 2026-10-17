@@ -35,6 +35,7 @@ object CaptionHook : BaseHook {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val rendererStates = WeakHashMap<Any, RendererState>()
     private val rendererSequence = AtomicLong(0L)
+    private val sessionGeneration = AtomicLong(0L)
     private val applyingTranslatedText = ThreadLocal.withInitial { false }
 
     override fun install(dexkit: DexKitBridge): Int {
@@ -333,11 +334,14 @@ object CaptionHook : BaseHook {
         if (session.translationFor(text) != null) return
 
         val sourceLanguage = CaptionLanguageState.currentSourceLanguage()
-        TranslationManager.translateAsync(
+        val generation = sessionGeneration.get()
+        TranslationManager.enqueueCaption(
             text = text,
             context = "YouTube subtitle $source",
             sourceLanguage = sourceLanguage,
         ) { original, translated ->
+            if (generation != sessionGeneration.get()) return@enqueueCaption
+
             session.putTranslation(original, translated)
             logV(name, "Translated caption from $source, sourceLanguage=$sourceLanguage, length=${original.length}")
             refreshVisibleRenderers(original, source)
@@ -347,6 +351,8 @@ object CaptionHook : BaseHook {
     private fun observeCaptionTrack(track: Any?, source: String) {
         if (!CaptionLanguageState.updateFromCaptionTrack(track, source)) return
 
+        sessionGeneration.incrementAndGet()
+        TranslationManager.reset()
         session.clear()
         synchronized(rendererStates) {
             rendererStates.clear()

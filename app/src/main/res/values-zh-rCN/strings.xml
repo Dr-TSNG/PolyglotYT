@@ -20,6 +20,8 @@
     <string name="openai_api_key">API Key</string>
     <string name="openai_endpoint">API 端点</string>
     <string name="openai_model">模型</string>
+    <string name="batch_translation">批量翻译</string>
+    <string name="include_video_title">附带视频标题</string>
     <string name="microsoft_api_key">Azure 降级备用 API Key（可不填）</string>
     <string name="microsoft_endpoint">Azure 降级备用 API 端点</string>
     <string name="microsoft_region">Azure 降级备用区域（全局资源可留空）</string>

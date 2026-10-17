@@ -21,6 +21,8 @@
     <string name="openai_api_key">API Key</string>
     <string name="openai_endpoint">API Endpoint</string>
     <string name="openai_model">Model</string>
+    <string name="batch_translation">Batch Translation</string>
+    <string name="include_video_title">Include Video Title</string>
     <string name="microsoft_api_key">Azure fallback API Key (optional)</string>
     <string name="microsoft_endpoint">Azure fallback API Endpoint</string>
     <string name="microsoft_region">Azure fallback Region (optional for global resources)</string>
