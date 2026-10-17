@@ -23,6 +23,8 @@ object OpenAICompatibleTranslator : Translator {
     private const val TAG = "OpenAICompatibleTranslator"
     private const val LOG_CHUNK_SIZE = 3_000
 
+    private val THINKING_FIELDS = listOf("thinking", "enable_thinking", "reasoning_effort")
+
     private val WHITESPACE = Regex("\\s+")
 
     override fun translate(request: TranslationRequest): TranslationResult {
@@ -101,6 +103,12 @@ object OpenAICompatibleTranslator : Translator {
             addProperty("model", module.config.openAiModel.ifBlank { DEFAULT_MODEL })
             addProperty("temperature", 1.0)
             add("messages", messages)
+            OpenAIThinkingParams.applyTo(
+                body = this,
+                mode = module.config.openAiThinkingMode,
+                parameter = module.config.openAiThinkingParameter,
+                effort = module.config.openAiReasoningEffort,
+            )
         }.toString()
     }
 
@@ -133,6 +141,12 @@ object OpenAICompatibleTranslator : Translator {
                 TAG,
                 "AI request: model=$model, texts=${request.texts.size}, " +
                         "timeoutMs=${request.timeoutMs}, bodyLength=${body.length}",
+            )
+            logD(
+                TAG,
+                "AI thinking: mode=${module.config.openAiThinkingMode}, " +
+                        "parameter=${module.config.openAiThinkingParameter}, " +
+                        "effort=${module.config.openAiReasoningEffort}",
             )
             logBody("AI request body", body)
         }
@@ -207,8 +221,17 @@ object OpenAICompatibleTranslator : Translator {
 
         throw TranslationHttpException(
             responseCode,
-            "OpenAI-compatible translate failed: HTTP $responseCode $responseMessage $body",
+            "OpenAI-compatible translate failed: HTTP $responseCode $responseMessage $body" +
+                thinkingHint(body),
         )
+    }
+
+    private fun thinkingHint(body: String): String {
+        val mentionsThinking = THINKING_FIELDS.any { body.contains(it, ignoreCase = true) }
+        if (!mentionsThinking) return ""
+
+        return " Hint: check the thinking mode, thinking parameter and reasoning effort " +
+            "settings, or set the thinking mode back to default."
     }
 
     private inline fun <T> HttpURLConnection.use(block: (HttpURLConnection) -> T): T =

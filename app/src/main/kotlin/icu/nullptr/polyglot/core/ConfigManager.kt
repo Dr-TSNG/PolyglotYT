@@ -38,6 +38,18 @@ class ConfigManager(context: Context, directory: File) {
 
     var openAiModel: String by Pref("openai_model", "gpt-4o-mini")
 
+    var openAiThinkingMode: String by Pref(
+        "openai_thinking_mode",
+        THINKING_MODE_DEFAULT,
+    )
+
+    var openAiThinkingParameter: String by Pref(
+        "openai_thinking_parameter",
+        THINKING_PARAMETER_THINKING,
+    )
+
+    var openAiReasoningEffort: String by Pref("openai_reasoning_effort", "")
+
     var batchTranslationEnabled: Boolean by Pref("batch_translation_enabled", true)
 
     var includeVideoTitle: Boolean by Pref("include_video_title", true)
@@ -107,6 +119,13 @@ class ConfigManager(context: Context, directory: File) {
         const val PROVIDER_GOOGLE = "google"
         const val PROVIDER_MICROSOFT = "microsoft"
         const val PROVIDER_OPENAI = "openai"
+
+        const val THINKING_MODE_DEFAULT = "default"
+        const val THINKING_MODE_ENABLED = "enabled"
+        const val THINKING_MODE_DISABLED = "disabled"
+
+        const val THINKING_PARAMETER_THINKING = "thinking"
+        const val THINKING_PARAMETER_ENABLE_THINKING = "enable_thinking"
 
         const val SUBTITLE_ORIGINAL_FIRST = "original_first"
         const val SUBTITLE_TRANSLATION_FIRST = "translation_first"

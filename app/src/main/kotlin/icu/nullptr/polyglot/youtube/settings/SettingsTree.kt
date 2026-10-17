@@ -101,6 +101,52 @@ internal object PolyglotSettingsTree {
                     summary = { SettingsOptions.textOrNotSet(module.config.openAiModel) },
                     onSubmitted = { module.config.openAiModel = it.trim() },
                 ),
+                SelectionSettingsNode(
+                    key = "$ENTRY_KEY.openai_thinking_mode",
+                    title = module.res.getString(R.string.thinking_mode),
+                    icon = SettingsIcon.Model,
+                    visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
+                    options = SettingsOptions.thinkingModes,
+                    selectedValue = { module.config.openAiThinkingMode },
+                    selectedLabel = {
+                        SettingsOptions.thinkingSummary(
+                            module.config.openAiThinkingMode,
+                            module.config.openAiThinkingParameter,
+                            module.config.openAiReasoningEffort,
+                        )
+                    },
+                    onSelected = { module.config.openAiThinkingMode = it },
+                ),
+                SelectionSettingsNode(
+                    key = "$ENTRY_KEY.openai_thinking_parameter",
+                    title = module.res.getString(R.string.thinking_parameter),
+                    icon = SettingsIcon.Model,
+                    visible = {
+                        module.config.provider == ConfigManager.PROVIDER_OPENAI &&
+                            module.config.openAiThinkingMode != ConfigManager.THINKING_MODE_DEFAULT
+                    },
+                    options = SettingsOptions.thinkingParameters,
+                    selectedValue = { module.config.openAiThinkingParameter },
+                    selectedLabel = {
+                        SettingsOptions.thinkingParameterLabel(module.config.openAiThinkingParameter)
+                    },
+                    onSelected = { module.config.openAiThinkingParameter = it },
+                ),
+                TextSettingsNode(
+                    key = "$ENTRY_KEY.openai_reasoning_effort",
+                    title = module.res.getString(R.string.reasoning_effort),
+                    icon = SettingsIcon.Language,
+                    visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
+                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS,
+                    value = { module.config.openAiReasoningEffort },
+                    summary = {
+                        SettingsOptions.reasoningEffortSummary(
+                            module.config.openAiReasoningEffort,
+                            module.config.openAiThinkingMode,
+                        )
+                    },
+                    onSubmitted = { module.config.openAiReasoningEffort = it.trim() },
+                ),
                 SwitchSettingsNode(
                     key = "$ENTRY_KEY.openai_batch",
                     title = module.res.getString(R.string.batch_translation),

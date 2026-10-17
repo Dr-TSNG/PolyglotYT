@@ -21,6 +21,20 @@
     <string name="openai_api_key">API Key</string>
     <string name="openai_endpoint">API Endpoint</string>
     <string name="openai_model">Model</string>
+    <string name="thinking_mode">Thinking Mode</string>
+    <string name="thinking_mode_default">Default (send nothing)</string>
+    <string name="thinking_mode_enabled">Enabled</string>
+    <string name="thinking_mode_disabled">Disabled</string>
+    <string name="thinking_parameter">Thinking Parameter</string>
+    <string name="thinking_parameter_thinking">thinking.type</string>
+    <string name="thinking_parameter_enable_thinking">enable_thinking (Qwen)</string>
+    <string name="reasoning_effort">Reasoning Effort</string>
+    <string name="reasoning_effort_ignored">%1$s (ignored while thinking is off)</string>
+    <string name="thinking_summary_default">No thinking parameters</string>
+    <string name="thinking_summary_effort_only">reasoning_effort=%1$s</string>
+    <string name="thinking_summary_toggle">%1$s · %2$s</string>
+    <string name="thinking_summary_toggle_effort">%1$s · %2$s · reasoning_effort=%3$s</string>
+    <string name="thinking_summary_disabled_ignores_effort">%1$s · %2$s · effort ignored</string>
     <string name="batch_translation">Batch Translation</string>
     <string name="include_video_title">Include Video Title</string>
     <string name="microsoft_api_key">Azure fallback API Key (optional)</string>
