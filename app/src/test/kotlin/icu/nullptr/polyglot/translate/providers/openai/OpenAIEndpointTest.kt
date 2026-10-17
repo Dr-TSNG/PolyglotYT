@@ -1,4 +1,4 @@
-package icu.nullptr.polyglot.translate.providers
+package icu.nullptr.polyglot.translate.providers.openai
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

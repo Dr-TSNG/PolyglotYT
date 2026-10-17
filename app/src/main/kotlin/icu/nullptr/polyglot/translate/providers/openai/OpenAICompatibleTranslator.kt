@@ -1,4 +1,4 @@
-package icu.nullptr.polyglot.translate.providers
+package icu.nullptr.polyglot.translate.providers.openai
 
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject

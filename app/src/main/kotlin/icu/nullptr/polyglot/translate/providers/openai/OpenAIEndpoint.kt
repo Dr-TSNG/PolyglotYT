@@ -1,4 +1,4 @@
-package icu.nullptr.polyglot.translate.providers
+package icu.nullptr.polyglot.translate.providers.openai
 
 /**
  * Normalizes the user-provided API endpoint so that it always points at the

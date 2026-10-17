@@ -3,7 +3,7 @@ package icu.nullptr.polyglot.settings
 import icu.nullptr.polyglot.R
 import icu.nullptr.polyglot.core.ConfigManager
 import icu.nullptr.polyglot.module
-import icu.nullptr.polyglot.translate.providers.OpenAIThinkingParams
+import icu.nullptr.polyglot.translate.providers.openai.OpenAIThinkingParams
 
 object SettingsOptions {
 

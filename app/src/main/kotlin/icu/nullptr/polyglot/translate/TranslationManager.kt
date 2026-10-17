@@ -3,7 +3,7 @@ package icu.nullptr.polyglot.translate
 import icu.nullptr.polyglot.captions.CaptionCue
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.translate.providers.MicrosoftTranslator
-import icu.nullptr.polyglot.translate.providers.OpenAICompatibleTranslator
+import icu.nullptr.polyglot.translate.providers.openai.OpenAICompatibleTranslator
 import icu.nullptr.polyglot.translate.providers.YouTubeCommentTranslator
 import icu.nullptr.polyglot.util.logD
 import icu.nullptr.polyglot.util.logW

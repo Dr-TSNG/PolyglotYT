@@ -6,7 +6,7 @@ import icu.nullptr.polyglot.core.ConfigManager
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.settings.SettingsOption
 import icu.nullptr.polyglot.settings.SettingsOptions
-import icu.nullptr.polyglot.translate.providers.OpenAIEndpoint
+import icu.nullptr.polyglot.translate.providers.openai.OpenAIEndpoint
 
 internal object PolyglotSettingsTree {
     fun root(): SettingsScreenNode =
