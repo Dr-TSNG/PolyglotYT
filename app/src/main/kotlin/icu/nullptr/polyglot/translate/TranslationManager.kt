@@ -236,7 +236,7 @@ object TranslationManager {
             }
 
             if (batch.size > 1) {
-                logD(TAG, "Splitting failed batch of ${batch.size}")
+                logD(TAG, "Splitting failed batch of ${batch.size}", error)
                 val middle = batch.size / 2
                 runBatch(batch.subList(0, middle))
                 runBatch(batch.subList(middle, batch.size))
@@ -252,32 +252,8 @@ object TranslationManager {
         }
 
         for ((index, item) in batch.withIndex()) {
-            val translated = translations.getOrNull(index).orEmpty()
-            if (translated.isNotBlank()) {
-                deliver(item, translated)
-                inFlight.remove(item.key)
-            } else {
-                retrySingle(item)
-            }
-        }
-    }
-
-    private fun retrySingle(item: PendingCaption) {
-        if (item.generation != generation) {
+            deliver(item, translations[index])
             inFlight.remove(item.key)
-            return
-        }
-
-        try {
-            val translated = translateWithRetry(item.text, item.context, item.lane.sourceLanguage)
-            if (translated.isNotBlank()) {
-                deliver(item, translated)
-                inFlight.remove(item.key)
-            } else {
-                finishFailure(item, IllegalStateException("Translation returned an empty result"))
-            }
-        } catch (error: Throwable) {
-            finishFailure(item, error)
         }
     }
 
@@ -317,7 +293,14 @@ object TranslationManager {
         var lastError: Throwable? = null
         for (attempt in 0 until BATCH_ATTEMPTS) {
             try {
-                return translate(request)
+                val translations = translate(request)
+                if (!isCompleteBatch(translations, request.texts.size)) {
+                    throw BatchTranslationException(
+                        "Batch returned ${translations.size} result(s) " +
+                            "for ${request.texts.size} texts",
+                    )
+                }
+                return translations
             } catch (error: Throwable) {
                 lastError = error
                 if (attempt >= BATCH_ATTEMPTS - 1 || !isRetryable(error)) break
@@ -326,6 +309,9 @@ object TranslationManager {
         }
         throw lastError ?: IllegalStateException("Translation cancelled")
     }
+
+    private fun isCompleteBatch(translations: List<String>, expectedCount: Int): Boolean =
+        translations.size == expectedCount && translations.all { it.isNotBlank() }
 
     private fun translateWithRetry(text: String, context: String, sourceLanguage: String): String {
         var attempt = 0

@@ -5,6 +5,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.translate.BatchResponseParser
+import icu.nullptr.polyglot.translate.BatchTranslationException
 import icu.nullptr.polyglot.translate.LanguageNames
 import icu.nullptr.polyglot.translate.TranslationHttpException
 import icu.nullptr.polyglot.translate.TranslationRequest
@@ -37,12 +38,19 @@ object OpenAICompatibleTranslator : Translator {
         val indexes = request.texts.indices.filter { request.texts[it].isNotBlank() }
         val texts = indexes.map { request.texts[it] }
         val content = postChat(buildRequestBody(request, texts), request)
-        var translations = BatchResponseParser.parse(content, texts.size)
+        val parsed = BatchResponseParser.parseBatch(content, texts.size)
 
-        // Some compatible endpoints ignore the JSON instruction. For a single
-        // line the raw response is still a valid translation.
-        if (texts.size == 1 && translations.firstOrNull().isNullOrBlank()) {
-            translations = listOf(BatchResponseParser.clean(content))
+        val translations = if (parsed.isValid) {
+            parsed.translations
+        } else if (texts.size == 1) {
+            // Some compatible endpoints ignore the JSON instruction. For a
+            // single line the raw response is still a valid translation.
+            listOf(BatchResponseParser.clean(content))
+        } else {
+            throw BatchTranslationException(
+                "OpenAI-compatible batch returned ${parsed.receivedCount} result(s) " +
+                    "for ${texts.size} texts",
+            )
         }
 
         val output = request.texts.toMutableList()

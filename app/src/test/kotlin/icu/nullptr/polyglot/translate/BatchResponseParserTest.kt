@@ -68,4 +68,56 @@ class BatchResponseParserTest {
     fun returnsEmptyListForUnparseableContent() {
         assertEquals(listOf("", ""), BatchResponseParser.parse("no json here", 2))
     }
+
+    @Test
+    fun validatesCompleteBatch() {
+        val content = """{"translations":[{"id":1,"text":"一"},{"id":2,"text":"二"}]}"""
+
+        val parsed = BatchResponseParser.parseBatch(content, 2)
+
+        assertEquals(true, parsed.isValid)
+        assertEquals(2, parsed.receivedCount)
+        assertEquals(listOf("一", "二"), parsed.translations)
+    }
+
+    @Test
+    fun invalidatesBatchWithMissingEntries() {
+        val content = """{"translations":[{"id":1,"text":"only one"}]}"""
+
+        val parsed = BatchResponseParser.parseBatch(content, 2)
+
+        assertEquals(false, parsed.isValid)
+        assertEquals(1, parsed.receivedCount)
+    }
+
+    @Test
+    fun invalidatesBatchWithExtraEntries() {
+        val content = """
+            {"translations":[
+                {"id":1,"text":"一"},
+                {"id":2,"text":"二"},
+                {"id":3,"text":"三"}
+            ]}
+        """.trimIndent()
+
+        val parsed = BatchResponseParser.parseBatch(content, 2)
+
+        assertEquals(false, parsed.isValid)
+        assertEquals(3, parsed.receivedCount)
+    }
+
+    @Test
+    fun invalidatesBatchWithDuplicateIds() {
+        val content = """
+            {"translations":[
+                {"id":1,"text":"一"},
+                {"id":1,"text":"又一"}
+            ]}
+        """.trimIndent()
+
+        val parsed = BatchResponseParser.parseBatch(content, 2)
+
+        assertEquals(false, parsed.isValid)
+        assertEquals(2, parsed.receivedCount)
+    }
 }
