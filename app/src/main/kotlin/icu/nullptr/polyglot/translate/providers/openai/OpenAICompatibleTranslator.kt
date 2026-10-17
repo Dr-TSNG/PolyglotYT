@@ -32,57 +32,46 @@ object OpenAICompatibleTranslator : Translator {
             return TranslationResult(request.texts)
         }
 
-        val template = module.config.openAiUserPrompt
-        val legacyPrompt = template.contains("{{origin}}") && !template.contains("{{lines}}")
-        if (legacyPrompt) {
-            return TranslationResult(
-                request.texts.map { text ->
-                    if (text.isBlank()) text else translateLegacy(text, request, template)
-                },
-            )
-        }
-
         val indexes = request.texts.indices.filter { request.texts[it].isNotBlank() }
         val texts = indexes.map { request.texts[it] }
-        val content = postChat(buildRequestBody(request, texts), request)
-        val parsed = BatchResponseParser.parseBatch(content, texts.size)
+        val output = request.texts.toMutableList()
 
-        val translations = if (parsed.isValid) {
-            parsed.translations
-        } else if (texts.size == 1) {
-            // Some compatible endpoints ignore the JSON instruction. For a
-            // single line the raw response is still a valid translation.
-            listOf(BatchResponseParser.clean(content))
-        } else {
+        if (texts.size == 1) {
+            val userPrompt = renderSingleUserPrompt(
+                template = module.config.openAiSingleUserPrompt,
+                request = request,
+                text = texts.single(),
+            )
+            val content = postChat(buildRequestBody(request, userPrompt), request)
+            output[indexes.single()] = BatchResponseParser.clean(content)
+            return TranslationResult(output)
+        }
+
+        val userPrompt = renderUserPrompt(
+            template = module.config.openAiUserPrompt,
+            request = request,
+            texts = texts,
+        )
+        val content = postChat(buildRequestBody(request, userPrompt), request)
+        val parsed = BatchResponseParser.parseBatch(content, texts.size)
+        if (!parsed.isValid) {
             throw BatchTranslationException(
                 "OpenAI-compatible batch returned ${parsed.receivedCount} result(s) " +
                     "for ${texts.size} texts",
             )
         }
 
-        val output = request.texts.toMutableList()
         indexes.forEachIndexed { index, originalIndex ->
-            output[originalIndex] = translations.getOrElse(index) { "" }
+            output[originalIndex] = parsed.translations.getOrElse(index) { "" }
         }
         return TranslationResult(output)
     }
 
-    private fun translateLegacy(
-        text: String,
-        request: TranslationRequest,
-        template: String,
-    ): String {
-        val content = postChat(buildRequestBody(request, listOf(text), template), request)
-        return BatchResponseParser.clean(content)
-    }
-
     private fun buildRequestBody(
         request: TranslationRequest,
-        texts: List<String>,
-        template: String = module.config.openAiUserPrompt,
+        userPrompt: String,
     ): String {
         val systemPrompt = module.config.openAiSystemPrompt
-        val userPrompt = renderUserPrompt(template, request, texts)
 
         val messages = JsonArray().apply {
             add(
@@ -127,8 +116,23 @@ object OpenAICompatibleTranslator : Translator {
             .replace("{{from}}", LanguageNames.displayName(request.sourceLanguage))
             .replace("{{to}}", LanguageNames.displayName(request.targetLanguage))
             .replace("{{context}}", request.context)
-            .replace("{{origin}}", texts.singleOrNull().orEmpty())
             .replace("{{lines}}", lines)
+    }
+
+    private fun renderSingleUserPrompt(
+        template: String,
+        request: TranslationRequest,
+        text: String,
+    ): String {
+        val title = request.videoTitle.ifBlank { "unknown" }
+        val line = text.replace(WHITESPACE, " ").trim()
+
+        return template
+            .replace("{{title}}", title)
+            .replace("{{from}}", LanguageNames.displayName(request.sourceLanguage))
+            .replace("{{to}}", LanguageNames.displayName(request.targetLanguage))
+            .replace("{{context}}", request.context)
+            .replace("{{line}}", line)
     }
 
     private fun postChat(body: String, request: TranslationRequest): String {

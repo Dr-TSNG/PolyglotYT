@@ -346,14 +346,9 @@ object TranslationManager {
 
     private fun supportsBatch(): Boolean =
         when (module.config.provider.lowercase(Locale.ROOT)) {
-            "openai", "openai-compatible", "custom" -> !isLegacyOpenAiPrompt()
+            "openai", "openai-compatible", "custom" -> true
             else -> false
         }
-
-    private fun isLegacyOpenAiPrompt(): Boolean {
-        val template = module.config.openAiUserPrompt
-        return template.contains("{{origin}}") && !template.contains("{{lines}}")
-    }
 
     private fun translator(): Translator =
         when (module.config.provider.lowercase(Locale.ROOT)) {
