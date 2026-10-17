@@ -6,4 +6,5 @@ data class TranslationRequest(
     val targetLanguage: String,
     val context: String,
     val timeoutMs: Int,
+    val videoTitle: String = "",
 )

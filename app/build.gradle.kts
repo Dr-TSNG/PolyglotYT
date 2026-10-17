@@ -69,4 +69,5 @@ dependencies {
     implementation(libs.dexkit)
     implementation(libs.gson)
     implementation(libs.mmkv)
+    testImplementation(libs.junit)
 }

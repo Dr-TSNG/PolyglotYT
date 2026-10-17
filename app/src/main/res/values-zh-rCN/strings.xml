@@ -20,6 +20,22 @@
     <string name="openai_api_key">API Key</string>
     <string name="openai_endpoint">API 端点</string>
     <string name="openai_model">模型</string>
+    <string name="thinking_mode">思考模式</string>
+    <string name="thinking_mode_default">默认（不发送）</string>
+    <string name="thinking_mode_enabled">开启</string>
+    <string name="thinking_mode_disabled">关闭</string>
+    <string name="thinking_parameter">思考参数</string>
+    <string name="thinking_parameter_thinking">thinking.type</string>
+    <string name="thinking_parameter_enable_thinking">enable_thinking (Qwen)</string>
+    <string name="reasoning_effort">推理强度</string>
+    <string name="reasoning_effort_ignored">%1$s（思考关闭时忽略）</string>
+    <string name="thinking_summary_default">不发送思考参数</string>
+    <string name="thinking_summary_effort_only">reasoning_effort=%1$s</string>
+    <string name="thinking_summary_toggle">%1$s · %2$s</string>
+    <string name="thinking_summary_toggle_effort">%1$s · %2$s · reasoning_effort=%3$s</string>
+    <string name="thinking_summary_disabled_ignores_effort">%1$s · %2$s · 已忽略强度</string>
+    <string name="batch_translation">批量翻译</string>
+    <string name="include_video_title">附带视频标题</string>
     <string name="microsoft_api_key">Azure 降级备用 API Key（可不填）</string>
     <string name="microsoft_endpoint">Azure 降级备用 API 端点</string>
     <string name="microsoft_region">Azure 降级备用区域（全局资源可留空）</string>

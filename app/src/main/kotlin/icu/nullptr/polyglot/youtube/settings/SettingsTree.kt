@@ -6,6 +6,7 @@ import icu.nullptr.polyglot.core.ConfigManager
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.settings.SettingsOption
 import icu.nullptr.polyglot.settings.SettingsOptions
+import icu.nullptr.polyglot.translate.providers.openai.OpenAIEndpoint
 
 internal object PolyglotSettingsTree {
     fun root(): SettingsScreenNode =
@@ -77,7 +78,7 @@ internal object PolyglotSettingsTree {
                     inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI,
                     value = { module.config.openAiEndpoint },
                     summary = { SettingsOptions.textOrNotSet(module.config.openAiEndpoint) },
-                    onSubmitted = { module.config.openAiEndpoint = it.trim() },
+                    onSubmitted = { module.config.openAiEndpoint = OpenAIEndpoint.normalize(it) },
                 ),
                 TextSettingsNode(
                     key = "$ENTRY_KEY.openai_api_key",
@@ -100,6 +101,72 @@ internal object PolyglotSettingsTree {
                     value = { module.config.openAiModel },
                     summary = { SettingsOptions.textOrNotSet(module.config.openAiModel) },
                     onSubmitted = { module.config.openAiModel = it.trim() },
+                ),
+                SelectionSettingsNode(
+                    key = "$ENTRY_KEY.openai_thinking_mode",
+                    title = module.res.getString(R.string.thinking_mode),
+                    icon = SettingsIcon.Thinking,
+                    visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
+                    options = SettingsOptions.thinkingModes,
+                    selectedValue = { module.config.openAiThinkingMode },
+                    selectedLabel = {
+                        SettingsOptions.thinkingSummary(
+                            module.config.openAiThinkingMode,
+                            module.config.openAiThinkingParameter,
+                            module.config.openAiReasoningEffort,
+                        )
+                    },
+                    onSelected = { module.config.openAiThinkingMode = it },
+                ),
+                SelectionSettingsNode(
+                    key = "$ENTRY_KEY.openai_thinking_parameter",
+                    title = module.res.getString(R.string.thinking_parameter),
+                    icon = SettingsIcon.ThinkingParameter,
+                    visible = {
+                        module.config.provider == ConfigManager.PROVIDER_OPENAI &&
+                            module.config.openAiThinkingMode != ConfigManager.THINKING_MODE_DEFAULT
+                    },
+                    options = SettingsOptions.thinkingParameters,
+                    selectedValue = { module.config.openAiThinkingParameter },
+                    selectedLabel = {
+                        SettingsOptions.thinkingParameterLabel(module.config.openAiThinkingParameter)
+                    },
+                    onSelected = { module.config.openAiThinkingParameter = it },
+                ),
+                TextSettingsNode(
+                    key = "$ENTRY_KEY.openai_reasoning_effort",
+                    title = module.res.getString(R.string.reasoning_effort),
+                    icon = SettingsIcon.ReasoningEffort,
+                    visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
+                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS,
+                    value = { module.config.openAiReasoningEffort },
+                    summary = {
+                        SettingsOptions.reasoningEffortSummary(
+                            module.config.openAiReasoningEffort,
+                            module.config.openAiThinkingMode,
+                        )
+                    },
+                    onSubmitted = { module.config.openAiReasoningEffort = it.trim() },
+                ),
+                SwitchSettingsNode(
+                    key = "$ENTRY_KEY.openai_batch",
+                    title = module.res.getString(R.string.batch_translation),
+                    icon = SettingsIcon.Batch,
+                    visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
+                    checked = { module.config.batchTranslationEnabled },
+                    summary = {
+                        SettingsOptions.enabledSummary(module.config.batchTranslationEnabled)
+                    },
+                    onChanged = { module.config.batchTranslationEnabled = it },
+                ),
+                SwitchSettingsNode(
+                    key = "$ENTRY_KEY.openai_video_title",
+                    title = module.res.getString(R.string.include_video_title),
+                    icon = SettingsIcon.Title,
+                    visible = { module.config.provider == ConfigManager.PROVIDER_OPENAI },
+                    checked = { module.config.includeVideoTitle },
+                    summary = { SettingsOptions.enabledSummary(module.config.includeVideoTitle) },
+                    onChanged = { module.config.includeVideoTitle = it },
                 ),
                 SelectionSettingsNode(
                     key = "$ENTRY_KEY.target_language",
@@ -199,6 +266,11 @@ internal enum class SettingsIcon(val drawableRes: Int) {
     Endpoint(R.drawable.outline_data_object_24),
     ApiKey(R.drawable.outline_key_24),
     Model(R.drawable.outline_deployed_code_24),
+    Thinking(R.drawable.outline_psychology_24),
+    ThinkingParameter(R.drawable.outline_tune_24),
+    ReasoningEffort(R.drawable.outline_speed_24),
+    Batch(R.drawable.outline_layers_24),
+    Title(R.drawable.outline_title_24),
     NetworkCheck(R.drawable.outline_network_check_24),
     Language(R.drawable.outline_language_24),
     Subtitle(R.drawable.outline_closed_caption_24),

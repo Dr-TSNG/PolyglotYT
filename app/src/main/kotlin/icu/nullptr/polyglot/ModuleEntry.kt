@@ -17,6 +17,7 @@ import icu.nullptr.polyglot.util.logI
 import icu.nullptr.polyglot.youtube.CaptionHook
 import icu.nullptr.polyglot.youtube.PlayerControlsHook
 import icu.nullptr.polyglot.youtube.SettingsHook
+import icu.nullptr.polyglot.youtube.VideoTitleHook
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface
 import java.util.concurrent.atomic.AtomicBoolean
@@ -84,6 +85,7 @@ class ModuleEntry : XposedModule() {
                     SettingsHook,
                     CaptionHook,
                     PlayerControlsHook,
+                    VideoTitleHook,
                 )
 
                 var successful = 0
