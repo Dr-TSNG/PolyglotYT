@@ -3,6 +3,7 @@ package icu.nullptr.polyglot.translate.providers
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import icu.nullptr.polyglot.BuildConfig
 import icu.nullptr.polyglot.module
 import icu.nullptr.polyglot.translate.BatchResponseParser
 import icu.nullptr.polyglot.translate.BatchTranslationException
@@ -11,12 +12,16 @@ import icu.nullptr.polyglot.translate.TranslationHttpException
 import icu.nullptr.polyglot.translate.TranslationRequest
 import icu.nullptr.polyglot.translate.TranslationResult
 import icu.nullptr.polyglot.translate.Translator
+import icu.nullptr.polyglot.util.logD
 import java.net.HttpURLConnection
 import java.net.URL
 
 object OpenAICompatibleTranslator : Translator {
     const val DEFAULT_ENDPOINT = "https://api.openai.com/v1/chat/completions"
     const val DEFAULT_MODEL = "gpt-4o-mini"
+
+    private const val TAG = "OpenAICompatibleTranslator"
+    private const val LOG_CHUNK_SIZE = 3_000
 
     private val WHITESPACE = Regex("\\s+")
 
@@ -122,6 +127,17 @@ object OpenAICompatibleTranslator : Translator {
         val apiKey = module.config.openAiApiKey
         require(apiKey.isNotBlank()) { "OpenAI-compatible API key is not configured" }
 
+        val model = module.config.openAiModel.ifBlank { DEFAULT_MODEL }
+        if (BuildConfig.DEBUG) {
+            logD(
+                TAG,
+                "AI request: model=$model, texts=${request.texts.size}, " +
+                        "timeoutMs=${request.timeoutMs}, bodyLength=${body.length}",
+            )
+            logBody("AI request body", body)
+        }
+
+        val startedAtMs = System.currentTimeMillis()
         val connection = URL(module.config.openAiEndpoint.ifBlank { DEFAULT_ENDPOINT })
             .openConnection() as HttpURLConnection
         connection.requestMethod = "POST"
@@ -136,7 +152,26 @@ object OpenAICompatibleTranslator : Translator {
 
         return connection.use {
             val response = it.readBodyOrThrow()
+            if (BuildConfig.DEBUG) {
+                logD(
+                    TAG,
+                    "AI response received: elapsedMs=${System.currentTimeMillis() - startedAtMs}, " +
+                            "bodyLength=${response.length}",
+                )
+            }
             parseContent(response)
+        }
+    }
+
+    private fun logBody(label: String, body: String) {
+        if (body.length <= LOG_CHUNK_SIZE) {
+            logD(TAG, "$label:\n$body")
+            return
+        }
+
+        val chunks = body.chunked(LOG_CHUNK_SIZE)
+        chunks.forEachIndexed { index, chunk ->
+            logD(TAG, "$label (${index + 1}/${chunks.size}):\n$chunk")
         }
     }
 
@@ -154,14 +189,25 @@ object OpenAICompatibleTranslator : Translator {
     }
 
     private fun HttpURLConnection.readBodyOrThrow(): String {
-        if (responseCode in 200..299) {
-            return inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        val success = responseCode in 200..299
+        val body = if (success) {
+            inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        } else {
+            errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
         }
 
-        val errorBody = errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+        if (BuildConfig.DEBUG) {
+            logD(TAG, "AI response: HTTP $responseCode, bodyLength=${body.length}")
+            logBody("AI response body", body)
+        }
+
+        if (success) {
+            return body
+        }
+
         throw TranslationHttpException(
             responseCode,
-            "OpenAI-compatible translate failed: HTTP $responseCode $responseMessage $errorBody",
+            "OpenAI-compatible translate failed: HTTP $responseCode $responseMessage $body",
         )
     }
 
